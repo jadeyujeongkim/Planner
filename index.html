@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#4f7757">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="세이지 플래너">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:auto}
+body{margin:0;font:14px system-ui,sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<title>세이지 플래너</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      bg: 'var(--bg)', card: 'var(--card)', card2: 'var(--card2)', line: 'var(--line)',
+      ink: 'var(--ink)', muted: 'var(--muted)', accent: 'var(--accent)',
+      'accent-strong': 'var(--accent-strong)', 'accent-soft': 'var(--accent-soft)',
+      onaccent: 'var(--onaccent)', danger: 'var(--danger)'
+    },
+    fontFamily: {
+      display: ['"Gowun Batang"', '"Noto Serif KR"', 'serif'],
+      sans: ['"Noto Sans KR"', '"Apple SD Gothic Neo"', '"Malgun Gothic"', 'system-ui', 'sans-serif']
+    },
+    boxShadow: { soft: '0 1px 2px rgba(30,45,34,.06), 0 10px 28px -14px rgba(30,45,34,.22)' }
+  } }
+};
+</script>
+<style>
+/* Layout concept: three-column diary desk. Left = photo frame + mini calendar + presets,
+   center = calendar with unscheduled bar over a 24h timetable, right = todo / journal. */
+:root{
+  --bg:#f6f4ee; --card:#fdfcf8; --card2:#eeece3; --line:#e0ddd0;
+  --ink:#26332a; --muted:#697769;
+  --accent:#4f7757; --accent-strong:#345a40; --accent-soft:#dde8da; --onaccent:#fbfaf5;
+  --danger:#b4634e;
+  --e0:#6f9c76; --e1:#c9a642; --e2:#6f91bd; --e3:#cf8a9a; --e4:#9a86bd; --e5:#d38d5f; --e6:#5f9e98; --e7:#8a948b;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#141a16; --card:#1b231d; --card2:#232d26; --line:#2f3b33;
+    --ink:#e6ece4; --muted:#97a79b;
+    --accent:#8fb596; --accent-strong:#b8d6bd; --accent-soft:#263429; --onaccent:#14201a;
+    --danger:#e0907b;
+    --e0:#8fbd97; --e1:#dcbc5f; --e2:#92b0d6; --e3:#e3a5b3; --e4:#b8a6d6; --e5:#e2a57c; --e6:#7ab9b2; --e7:#aab4ab;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141a16; --card:#1b231d; --card2:#232d26; --line:#2f3b33;
+  --ink:#e6ece4; --muted:#97a79b;
+  --accent:#8fb596; --accent-strong:#b8d6bd; --accent-soft:#263429; --onaccent:#14201a;
+  --danger:#e0907b;
+  --e0:#8fbd97; --e1:#dcbc5f; --e2:#92b0d6; --e3:#e3a5b3; --e4:#b8a6d6; --e5:#e2a57c; --e6:#7ab9b2; --e7:#aab4ab;
+  color-scheme:dark;
+}
+body{
+  background:var(--bg); color:var(--ink); font-size:14px;
+  font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+  padding-block:20px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:12px;padding:8px 12px;font-size:13px;font-weight:500;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--card2)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--onaccent)}
+.btn-primary:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
+.btn-soft{background:var(--accent-soft);border-color:transparent;color:var(--accent-strong)}
+.btn-soft:hover{background:var(--accent-soft);border-color:var(--accent)}
+.btn-danger{color:var(--danger)}
+.icon-btn{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:10px;color:var(--muted);cursor:pointer;background:transparent;border:0;flex:none}
+.icon-btn:hover{background:var(--card2);color:var(--ink)}
+.field{width:100%;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:8px 12px;font-size:14px;outline:none}
+.field:focus{border-color:var(--accent)}
+.glass{background:color-mix(in srgb,var(--card) 78%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:var(--ink)}
+.glass-btn{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:500;cursor:pointer;border:0}
+.ev{background:color-mix(in srgb,var(--c) 24%,var(--card));border-left:3px solid var(--c);color:var(--ink)}
+.chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;border-radius:999px;padding:4px 10px;font-size:12px;cursor:grab;color:var(--ink);background:color-mix(in srgb,var(--c) 18%,var(--card));border:1px dashed var(--c)}
+.chip:active{cursor:grabbing}
+.mchip{display:flex;align-items:center;gap:4px;width:100%;border-radius:6px;padding:2px 6px;font-size:11px;text-align:left;cursor:grab;color:var(--ink);background:color-mix(in srgb,var(--c) 22%,var(--card));border-left:2px solid var(--c);overflow:hidden}
+.mchip.untimed{border-left-style:dashed}
+.check{width:20px;height:20px;border-radius:999px;border:1.5px solid var(--accent);display:grid;place-items:center;flex:none;color:var(--onaccent);background:transparent;cursor:pointer;position:relative;z-index:1}
+.check.on{background:var(--accent)}
+.check.now{box-shadow:0 0 0 3px var(--accent-soft)}
+.rm-li::before{content:"";position:absolute;left:9.5px;top:22px;bottom:-2px;width:1px;background:var(--line)}
+.rm-li:last-child::before{display:none}
+.lined{background-image:repeating-linear-gradient(transparent,transparent 31px,var(--line) 32px);background-attachment:local;line-height:32px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+<script>
+const { useState, useEffect, useRef, useMemo, useContext } = React;
+const html = htm.bind(React.createElement);
+
+/* ---------- constants & helpers ---------- */
+const HH = 52; // px per hour in the timetable
+const DOW = ['일','월','화','수','목','금','토'];
+const COLOR_NAMES = ['그린','옐로우','블루','핑크','퍼플','오렌지','민트','그레이'];
+const DEFAULT_CATS = [
+  { id: 'cat-study', name: '학업', color: 1 },
+  { id: 'cat-leisure', name: '여가', color: 0 },
+  { id: 'cat-work', name: '업무', color: 2 },
+  { id: 'cat-health', name: '운동·건강', color: 6 },
+  { id: 'cat-life', name: '생활', color: 3 }
+];
+const OLD_MAP = ['cat-leisure', 'cat-leisure', 'cat-health', 'cat-work', 'cat-study', 'cat-life'];
+const CatCtx = React.createContext({ list: [], map: {} });
+const cvar = (m, id) => 'var(--e' + ((m[id] || { color: 7 }).color) + ')';
+/* older saved data used a numeric color per item; convert it to a category */
+function migrate(d) {
+  const x = { ...d };
+  delete x.projects;
+  if (!x.ddays) x.ddays = [];
+  if (!x.cats) x.cats = DEFAULT_CATS.map(c => ({ ...c }));
+  const fix = o => (o.cat ? o : { ...o, cat: OLD_MAP[o.color] || 'cat-life' });
+  x.events = x.events.map(fix);
+  x.presets = x.presets.map(p => ({ ...p, items: p.items.map(fix) }));
+  x.todos = x.todos.map(fix);
+  return x;
+}
+const KEY = 'sage-planner-v1', PKEY = 'sage-planner-photo-v1', STAMP = 'sage-planner-stamp-v1';
+const readStamp = () => { try { return Number(localStorage.getItem(STAMP)) || 0; } catch (e) { return 0; } };
+const pad = n => String(n).padStart(2, '0');
+const fmt = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const addMonths = (d, n) => {
+  const last = new Date(d.getFullYear(), d.getMonth() + n + 1, 0).getDate();
+  return new Date(d.getFullYear(), d.getMonth() + n, Math.min(d.getDate(), last));
+};
+const mm = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+const snap = m => Math.round(m / 15) * 15;
+const uid = () => Math.random().toString(36).slice(2, 9);
+const label = s => { const d = parse(s); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 (' + DOW[d.getDay()] + ')'; };
+
+function titleOf(view, sel) {
+  const d = parse(sel);
+  if (view === 'month') return d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월';
+  if (view === 'day') return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + DOW[d.getDay()] + '요일';
+  const s = addDays(d, -d.getDay()), e = addDays(s, 6);
+  return s.getMonth() === e.getMonth()
+    ? s.getFullYear() + '년 ' + (s.getMonth() + 1) + '월 ' + s.getDate() + '일 – ' + e.getDate() + '일'
+    : (s.getMonth() + 1) + '월 ' + s.getDate() + '일 – ' + (e.getMonth() + 1) + '월 ' + e.getDate() + '일';
+}
+
+/* lay out overlapping blocks side by side */
+function layout(evs) {
+  const s = [...evs].sort((a, b) => a.start - b.start || b.end - a.end);
+  const out = []; let cluster = [], clusterEnd = -1, laneEnds = [];
+  const flush = () => { cluster.forEach(c => { c.cols = laneEnds.length; }); out.push(...cluster); cluster = []; laneEnds = []; clusterEnd = -1; };
+  for (const e of s) {
+    if (cluster.length && e.start >= clusterEnd) flush();
+    let lane = laneEnds.findIndex(x => x <= e.start);
+    if (lane < 0) { lane = laneEnds.length; laneEnds.push(e.end); } else laneEnds[lane] = e.end;
+    cluster.push({ e, lane, cols: 1 });
+    clusterEnd = Math.max(clusterEnd, e.end);
+  }
+  flush();
+  return out;
+}
+
+/* ---------- icons (Lucide-style paths) ---------- */
+const ICONS = {
+  left: ['m15 18-6-6 6-6'], right: ['m9 18 6-6-6-6'],
+  plus: ['M5 12h14', 'M12 5v14'], x: ['M18 6 6 18', 'm6 6 12 12'], check: ['M20 6 9 17l-5-5'],
+  trash: ['M3 6h18', 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6', 'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2', 'M10 11v6', 'M14 11v6'],
+  pencil: ['M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z', 'm15 5 4 4'],
+  image: ['M16 5h6', 'M19 2v6', 'M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5', 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21', 'M9 7a2 2 0 1 0 0 4 2 2 0 0 0 0-4'],
+  leaf: ['M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z', 'M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12'],
+  cal: ['M8 2v4', 'M16 2v4', 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z', 'M3 10h18'],
+  clock: ['M12 6v6l4 2', 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20'],
+  list: ['m3 17 2 2 4-4', 'm3 7 2 2 4-4', 'M13 6h8', 'M13 12h8', 'M13 18h8'],
+  book: ['M12 7v14', 'M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z'],
+  flag: ['M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z', 'M4 22v-7'],
+  star: ['M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'],
+  undo: ['M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8', 'M3 3v5h5'],
+  arrow: ['M5 12h14', 'm12 5 7 7-7 7'],
+  inbox: ['M22 12h-6l-2 3h-4l-2-3H2', 'M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z']
+};
+function Icon({ n, size = 16, sw = 1.8 }) {
+  return html`<svg viewBox="0 0 24 24" width=${size} height=${size} fill="none" stroke="currentColor" strokeWidth=${sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">${ICONS[n].map((d, i) => html`<path key=${i} d=${d} />`)}</svg>`;
+}
+
+/* ---------- default photo (embedded so it works offline) ---------- */
+const DEFAULT_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">' +
+  '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef2e6"/><stop offset="1" stop-color="#d3e0cc"/></linearGradient></defs>' +
+  '<rect width="800" height="600" fill="url(#g)"/>' +
+  '<circle cx="590" cy="170" r="84" fill="#f6efd6" opacity=".95"/><circle cx="590" cy="170" r="118" fill="#f6efd6" opacity=".35"/>' +
+  '<path d="M0 400 Q200 300 400 380 T800 340 V600 H0Z" fill="#bcd0b6"/>' +
+  '<path d="M0 460 Q220 380 450 450 T800 430 V600 H0Z" fill="#98b594"/>' +
+  '<path d="M0 525 Q250 470 480 525 T800 505 V600 H0Z" fill="#6f9374"/>' +
+  '<g fill="none" stroke="#3f6249" stroke-width="5" stroke-linecap="round"><path d="M110 600 C140 490 185 390 255 300"/><path d="M700 600 C690 520 660 440 610 380"/></g>' +
+  '<g fill="#3f6249"><ellipse cx="150" cy="500" rx="48" ry="17" transform="rotate(-30 150 500)"/><ellipse cx="190" cy="430" rx="46" ry="16" transform="rotate(-55 190 430)"/><ellipse cx="238" cy="352" rx="42" ry="15" transform="rotate(-70 238 352)"/><ellipse cx="112" cy="460" rx="40" ry="14" transform="rotate(20 112 460)"/><ellipse cx="170" cy="380" rx="40" ry="14" transform="rotate(10 170 380)"/></g>' +
+  '<g fill="#52805c"><ellipse cx="690" cy="500" rx="44" ry="15" transform="rotate(-150 690 500)"/><ellipse cx="660" cy="440" rx="42" ry="15" transform="rotate(-125 660 440)"/><ellipse cx="722" cy="460" rx="38" ry="13" transform="rotate(-20 722 460)"/><ellipse cx="628" cy="395" rx="36" ry="13" transform="rotate(-110 628 395)"/></g>' +
+  '<g fill="#fdfcf8" opacity=".8"><circle cx="330" cy="250" r="3"/><circle cx="380" cy="215" r="2.5"/><circle cx="430" cy="270" r="2"/><circle cx="470" cy="210" r="3"/><circle cx="300" cy="190" r="2"/></g></svg>'
+);
+
+function readImage(file, cb) {
+  const r = new FileReader();
+  r.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      /* keep the stored photo small enough to sync (a database document holds at most 256 KiB) */
+      let side = 900, q = 0.78, out = '';
+      for (let i = 0; i < 6; i++) {
+        const sc = Math.min(1, side / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        out = c.toDataURL('image/jpeg', q);
+        if (out.length < 200000) break;
+        side = Math.round(side * 0.8); q = Math.max(0.5, q - 0.06);
+      }
+      cb(out);
+    };
+    img.src = r.result;
+  };
+  r.readAsDataURL(file);
+}
+
+/* ---------- seed data & persistence ---------- */
+function seed() {
+  const t = new Date(), d0 = fmt(t), d1 = fmt(addDays(t, 1)), dm = fmt(addDays(t, -1));
+  const ev = (title, date, start, end, cat) => ({ id: uid(), title, date, start, end, cat });
+  const it = (title, start, end, cat) => ({ id: uid(), title, start, end, cat });
+  const st = (text, done) => ({ id: uid(), text, done });
+  return {
+    caption: '천천히, 하지만 꾸준히',
+    events: [
+      ev('아침 스트레칭', d0, 420, 450, 'cat-health'), ev('팀 미팅', d0, 840, 900, 'cat-work'), ev('독서', d0, 1260, 1320, 'cat-leisure'),
+      ev('수학 숙제하기', d0, 600, 660, 'cat-study'), ev('장보기', d0, null, null, 'cat-life'), ev('엄마께 전화', d0, null, null, 'cat-life'),
+      ev('치과 예약', d1, 630, 690, 'cat-health'), ev('운동 계획 세우기', d1, null, null, 'cat-health'), ev('도서관 반납', dm, null, null, 'cat-leisure')
+    ],
+    presets: [
+      { id: uid(), name: '월/수 학교 시간표', items: [it('수학', 540, 630, 'cat-study'), it('영어', 640, 720, 'cat-study'), it('역사', 780, 870, 'cat-study'), it('동아리', 900, 960, 'cat-leisure')] },
+      { id: uid(), name: '시험기간 루틴', items: [it('아침 복습', 420, 480, 'cat-study'), it('집중 공부 1', 540, 720, 'cat-study'), it('집중 공부 2', 780, 930, 'cat-study'), it('운동', 960, 1020, 'cat-health'), it('오답 정리', 1140, 1290, 'cat-study')] }
+    ],
+    ddays: [{ id: uid(), title: '기말고사 (예시)', date: fmt(addDays(t, 14)) }],
+    todos: [
+      { id: uid(), date: d0, text: '수학 숙제하기', done: false, cat: 'cat-study' },
+      { id: uid(), date: d0, text: '책 30쪽 읽기', done: true, cat: 'cat-leisure' },
+      { id: uid(), date: d0, text: '물 2L 마시기', done: false, cat: 'cat-health' }
+    ],
+    journal: {}
+  };
+}
+function load() {
+  try { const r = localStorage.getItem(KEY); if (r) return migrate(Object.assign({ events: [], presets: [], todos: [], journal: {}, caption: '', ddays: [] }, JSON.parse(r))); } catch (e) {}
+  return null;
+}
+
+/* ---------- small shared components ---------- */
+function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const k = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
+  const p = 'max(16px,env(safe-area-inset-';
+  return html`
+    <div className="fixed inset-0 z-50 flex items-center justify-center"
+      style=${{ background: 'rgba(20,28,22,.45)', padding: p + 'top,0px)) ' + p + 'right,0px)) ' + p + 'bottom,0px)) ' + p + 'left,0px))' }}
+      onMouseDown=${e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label=${title}
+        className="w-full max-w-md overflow-y-auto rounded-[24px] border border-line bg-card p-5 shadow-soft" style=${{ maxHeight: '100%' }}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-display text-xl">${title}</h2>
+          <button type="button" className="icon-btn" onClick=${onClose} aria-label="닫기"><${Icon} n="x" /></button>
+        </div>
+        ${children}
+      </div>
+    </div>`;
+}
+
+function TimeSelect({ value, onChange, min = 0, max = 1440, label: lb }) {
+  const opts = []; for (let m = min; m <= max; m += 15) opts.push(m);
+  return html`<select aria-label=${lb} value=${value} onChange=${e => onChange(+e.target.value)} className="field">${opts.map(m => html`<option key=${m} value=${m}>${mm(m)}</option>`)}</select>`;
+}
+
+function Swatches({ value, onChange }) {
+  return html`<div className="flex flex-wrap gap-2" role="radiogroup" aria-label="색상">${COLOR_NAMES.map((n, i) => html`
+    <button key=${i} type="button" role="radio" aria-checked=${value === i} aria-label=${n} onClick=${() => onChange(i)}
+      className="h-7 w-7 rounded-full" style=${{ background: 'var(--e' + i + ')', boxShadow: value === i ? '0 0 0 2px var(--card),0 0 0 4px var(--e' + i + ')' : 'none' }} />`)}</div>`;
+}
+
+/* ---------- categories (name + color) ---------- */
+function CatPick({ value, onChange }) {
+  const { list } = useContext(CatCtx);
+  return html`<div className="flex flex-wrap gap-2" role="radiogroup" aria-label="카테고리">${list.map(c => html`
+    <button key=${c.id} type="button" role="radio" aria-checked=${value === c.id} onClick=${() => onChange(c.id)}
+      className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm"
+      style=${{ borderColor: value === c.id ? 'var(--e' + c.color + ')' : 'var(--line)', background: value === c.id ? 'color-mix(in srgb,var(--e' + c.color + ') 22%,var(--card))' : 'transparent' }}>
+      <span className="h-2.5 w-2.5 rounded-full" style=${{ background: 'var(--e' + c.color + ')' }} />${c.name}</button>`)}</div>`;
+}
+
+function CatsPanel({ onEdit }) {
+  const { list } = useContext(CatCtx);
+  return html`
+    <section className="order-4 rounded-[28px] border border-line bg-card p-4 shadow-soft xl:order-6">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-display text-base">카테고리</h2>
+        <button type="button" className="btn" onClick=${onEdit}><${Icon} n="pencil" size=${13} />편집</button>
+      </div>
+      <ul className="flex flex-wrap gap-2">${list.map(c => html`<li key=${c.id} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm" style=${{ background: 'color-mix(in srgb,var(--e' + c.color + ') 22%,var(--card))' }}><span className="h-2.5 w-2.5 rounded-full" style=${{ background: 'var(--e' + c.color + ')' }} />${c.name}</li>`)}</ul>
+      <p className="mt-3 text-xs text-muted">일정과 할 일을 만들 때 카테고리를 고르면 이 색으로 표시돼요.</p>
+    </section>`;
+}
+
+function CatModal({ cats, setCats, onDelete, onClose }) {
+  const upd = (id, p) => setCats(cats.map(c => c.id === id ? { ...c, ...p } : c));
+  const add = () => setCats([...cats, { id: 'cat-' + uid(), name: '', color: cats.length % 8 }]);
+  const finish = () => { setCats(cats.map(c => c.name.trim() ? c : { ...c, name: '이름 없음' })); onClose(); };
+  return html`
+    <${Modal} title="카테고리 관리" onClose=${finish}>
+      <p className="mb-3 text-xs text-muted">이름과 색을 짝지어 두세요. 예: 여가 – 그린, 학업 – 옐로우. 바꾸면 기존 일정 색도 함께 바뀌어요.</p>
+      <div className="flex flex-col gap-3">
+        ${cats.map(c => html`<div key=${c.id} className="rounded-2xl border border-line bg-bg p-3">
+          <div className="flex items-center gap-2">
+            <span className="h-6 w-6 flex-none rounded-full" style=${{ background: 'var(--e' + c.color + ')' }} />
+            <input className="field" aria-label="카테고리 이름" placeholder="이름 (예: 여가)" value=${c.name} onChange=${e => upd(c.id, { name: e.target.value })} />
+            <button type="button" className="icon-btn" aria-label=${(c.name || '카테고리') + ' 삭제'} disabled=${cats.length <= 1} style=${{ opacity: cats.length <= 1 ? .4 : 1 }} onClick=${() => onDelete(c.id)}><${Icon} n="trash" size=${15} /></button>
+          </div>
+          <div className="mt-2.5 pl-8"><${Swatches} value=${c.color} onChange=${v => upd(c.id, { color: v })} /></div>
+        </div>`)}
+      </div>
+      <p className="mt-3 text-xs text-muted">카테고리를 삭제하면 그 카테고리의 일정과 할 일은 맨 위 카테고리로 옮겨져요.</p>
+      <div className="mt-4 flex items-center justify-between">
+        <button type="button" className="btn" onClick=${add}><${Icon} n="plus" size=${14} />카테고리 추가</button>
+        <button type="button" className="btn btn-primary" onClick=${finish}>완료</button>
+      </div>
+    <//>`;
+}
+
+/* ---------- event modal ---------- */
+function EventModal({ ev, onSave, onDelete, onClose }) {
+  const [d, setD] = useState(ev);
+  const [err, setErr] = useState('');
+  const [cf, setCf] = useState(false);
+  const last = useRef(ev.start != null ? { s: ev.start, e: ev.end } : { s: 540, e: 600 });
+  const timed = d.start != null;
+  const set = p => setD(x => ({ ...x, ...p }));
+  const setStart = s => { const e = d.end != null && d.end > s ? d.end : Math.min(1440, s + 60); last.current = { s, e }; set({ start: s, end: e }); };
+  const setEnd = e => { last.current = { s: d.start, e }; set({ end: e }); };
+  const toggle = t => { if (t && !timed) set({ start: last.current.s, end: last.current.e }); if (!t && timed) set({ start: null, end: null }); };
+  const submit = e => {
+    e.preventDefault();
+    const title = d.title.trim();
+    if (!title) { setErr('제목을 입력해 주세요.'); return; }
+    onSave({ ...d, title });
+  };
+  return html`
+    <${Modal} title=${ev.id ? '일정 수정' : '새 일정'} onClose=${onClose}>
+      <form onSubmit=${submit} className="flex flex-col gap-4">
+        <div>
+          <input autoFocus className="field" placeholder="무엇을 할까요?" aria-label="제목" value=${d.title} onChange=${e => { set({ title: e.target.value }); setErr(''); }} />
+          ${err && html`<p className="mt-1 text-xs text-danger">${err}</p>`}
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted" htmlFor="ev-date">날짜</label>
+          <input id="ev-date" type="date" className="field" value=${d.date} onChange=${e => e.target.value && set({ date: e.target.value })} />
+        </div>
+        <div>
+          <div className="mb-1 text-xs text-muted">시간</div>
+          <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl bg-card2 p-1">
+            <button type="button" aria-pressed=${timed} onClick=${() => toggle(true)} className=${'rounded-lg py-1.5 text-sm ' + (timed ? 'bg-card font-medium shadow-soft' : 'text-muted')}>시간 설정</button>
+            <button type="button" aria-pressed=${!timed} onClick=${() => toggle(false)} className=${'rounded-lg py-1.5 text-sm ' + (!timed ? 'bg-card font-medium shadow-soft' : 'text-muted')}>시간 미설정</button>
+          </div>
+          ${timed
+            ? html`<div className="flex items-center gap-2"><${TimeSelect} value=${d.start} max=${1425} onChange=${setStart} label="시작 시간" /><span className="text-muted">~</span><${TimeSelect} value=${d.end} min=${d.start + 15} onChange=${setEnd} label="종료 시간" /></div>`
+            : html`<p className="text-xs text-muted">시간 없이 저장하면 시간표 위 대기 영역에 놓여요. 원하는 시간대로 끌어다 놓으면 시간이 정해져요.</p>`}
+        </div>
+        <div><div className="mb-2 text-xs text-muted">카테고리</div><${CatPick} value=${d.cat} onChange=${c => set({ cat: c })} /></div>
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <div>${ev.id && (cf
+            ? html`<span className="flex items-center gap-2 text-sm"><button type="button" className="btn btn-danger" onClick=${() => onDelete(ev.id)}>정말 삭제</button><button type="button" className="btn" onClick=${() => setCf(false)}>취소</button></span>`
+            : html`<button type="button" className="btn btn-danger" onClick=${() => setCf(true)}><${Icon} n="trash" size=${14} />삭제</button>`)}</div>
+          ${!cf && html`<div className="flex gap-2"><button type="button" className="btn" onClick=${onClose}>취소</button><button type="submit" className="btn btn-primary">저장</button></div>`}
+        </div>
+      </form>
+    <//>`;
+}
+
+/* ---------- preset modal ---------- */
+function PresetModal({ preset, dayEvents, selLabel, onSave, onDelete, onClose }) {
+  const [d, setD] = useState(preset);
+  const [err, setErr] = useState('');
+  const [cf, setCf] = useState(false);
+  const { list, map } = useContext(CatCtx);
+  const setItem = (id, p) => setD(x => ({ ...x, items: x.items.map(i => i.id === id ? { ...i, ...p } : i) }));
+  const setStart = (i, s) => setItem(i.id, { start: s, end: i.end > s ? i.end : Math.min(1440, s + 60) });
+  const addRow = () => setD(x => {
+    const l = x.items[x.items.length - 1];
+    const s = l ? Math.min(1380, l.end) : 540;
+    return { ...x, items: [...x.items, { id: uid(), title: '', start: s, end: Math.min(1440, s + 60), cat: l ? l.cat : (list[0] ? list[0].id : '') }] };
+  });
+  const importDay = () => setD(x => ({
+    ...x,
+    items: [...x.items.filter(i => i.title.trim()), ...dayEvents.map(e => ({ id: uid(), title: e.title, start: e.start, end: e.end, cat: e.cat }))]
+  }));
+  const submit = e => {
+    e.preventDefault();
+    const name = d.name.trim();
+    const items = d.items.filter(i => i.title.trim()).map(i => ({ ...i, title: i.title.trim() })).sort((a, b) => a.start - b.start);
+    if (!name) { setErr('프리셋 이름을 입력해 주세요.'); return; }
+    if (!items.length) { setErr('일정을 한 개 이상 추가해 주세요.'); return; }
+    onSave({ ...d, name, items });
+  };
+  return html`
+    <${Modal} title=${preset.fresh ? '새 프리셋' : '프리셋 수정'} onClose=${onClose}>
+      <form onSubmit=${submit} className="flex flex-col gap-4">
+        <input autoFocus className="field" aria-label="프리셋 이름" placeholder="예: 월/수 학교 시간표" value=${d.name} onChange=${e => { setD({ ...d, name: e.target.value }); setErr(''); }} />
+        <div className="flex flex-col gap-3">
+          ${d.items.map(i => html`
+            <div key=${i.id} className="rounded-2xl border border-line bg-bg p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="h-6 w-6 flex-none rounded-full" style=${{ background: cvar(map, i.cat) }} />
+                <input className="field" aria-label="일정 제목" placeholder="일정 제목" value=${i.title} onChange=${e => setItem(i.id, { title: e.target.value })} />
+                <button type="button" className="icon-btn" aria-label="행 삭제" onClick=${() => setD(x => ({ ...x, items: x.items.filter(r => r.id !== i.id) }))}><${Icon} n="x" size=${15} /></button>
+              </div>
+              <div className="mt-2 flex items-center gap-2 pl-8">
+                <${TimeSelect} value=${i.start} max=${1425} onChange=${s => setStart(i, s)} label="시작" /><span className="text-muted">~</span><${TimeSelect} value=${i.end} min=${i.start + 15} onChange=${e => setItem(i.id, { end: e })} label="종료" />
+                <select aria-label="카테고리" value=${i.cat} onChange=${e => setItem(i.id, { cat: e.target.value })} className="field">${list.map(c => html`<option key=${c.id} value=${c.id}>${c.name}</option>`)}</select>
+              </div>
+            </div>`)}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn" onClick=${addRow}><${Icon} n="plus" size=${14} />일정 추가</button>
+          <button type="button" className="btn btn-soft" disabled=${!dayEvents.length} onClick=${importDay} style=${{ opacity: dayEvents.length ? 1 : .5 }}><${Icon} n="cal" size=${14} />${selLabel} 일정 불러오기</button>
+        </div>
+        ${err && html`<p className="text-xs text-danger">${err}</p>`}
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <div>${!preset.fresh && (cf
+            ? html`<span className="flex gap-2"><button type="button" className="btn btn-danger" onClick=${() => onDelete(preset.id)}>정말 삭제</button><button type="button" className="btn" onClick=${() => setCf(false)}>취소</button></span>`
+            : html`<button type="button" className="btn btn-danger" onClick=${() => setCf(true)}><${Icon} n="trash" size=${14} />삭제</button>`)}</div>
+          ${!cf && html`<div className="flex gap-2"><button type="button" className="btn" onClick=${onClose}>취소</button><button type="submit" className="btn btn-primary">저장</button></div>`}
+        </div>
+      </form>
+    <//>`;
+}
+
+/* ---------- left column ---------- */
+function PhotoWidget({ photo, onPick, onReset, caption, onCaption, today }) {
+  const inp = useRef(null);
+  const d = parse(today);
+  return html`
+    <section className="order-1 rounded-[28px] border border-line bg-card p-2 shadow-soft">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] bg-card2">
+        <img src=${photo || DEFAULT_PHOTO} alt="내가 고른 무드 사진" className="h-full w-full object-cover" draggable="false" />
+        <div className="glass absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-medium tabular-nums">${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${DOW[d.getDay()]}</div>
+        <div className="absolute bottom-3 right-3 flex gap-2">
+          ${photo && html`<button type="button" className="glass glass-btn" onClick=${onReset}><${Icon} n="undo" size=${13} />기본</button>`}
+          <button type="button" className="glass glass-btn" onClick=${() => inp.current && inp.current.click()}><${Icon} n="image" size=${13} />사진 변경</button>
+        </div>
+        <input ref=${inp} type="file" accept="image/*" className="hidden" aria-label="사진 업로드" onChange=${e => { const f = e.target.files && e.target.files[0]; if (f) onPick(f); e.target.value = ''; }} />
+      </div>
+      <div className="px-3 pb-2 pt-3">
+        <div className="text-[10px] uppercase tracking-[.18em] text-muted">Today's mood</div>
+        <input value=${caption} maxLength="40" onChange=${e => onCaption(e.target.value)} aria-label="무드 문구" placeholder="오늘의 무드를 적어보세요" className="w-full bg-transparent font-display text-lg outline-none placeholder:text-muted" />
+      </div>
+    </section>`;
+}
+
+function MiniCal({ sel, onSelect, eventDates, today }) {
+  const [m, setM] = useState(() => { const d = parse(sel); return new Date(d.getFullYear(), d.getMonth(), 1); });
+  useEffect(() => {
+    const d = parse(sel);
+    setM(x => (x.getFullYear() === d.getFullYear() && x.getMonth() === d.getMonth()) ? x : new Date(d.getFullYear(), d.getMonth(), 1));
+  }, [sel]);
+  const lead = m.getDay();
+  const dim = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+  const cells = Array.from({ length: Math.ceil((lead + dim) / 7) * 7 }, (_, i) => addDays(m, i - lead));
+  return html`
+    <section className="order-4 hidden rounded-[28px] border border-line bg-card p-4 shadow-soft xl:block">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="font-display text-base">${m.getFullYear()}년 ${m.getMonth() + 1}월</span>
+        <span className="flex"><button type="button" className="icon-btn" aria-label="이전 달" onClick=${() => setM(addMonths(m, -1))}><${Icon} n="left" /></button><button type="button" className="icon-btn" aria-label="다음 달" onClick=${() => setM(addMonths(m, 1))}><${Icon} n="right" /></button></span>
+      </div>
+      <div className="grid grid-cols-7 text-center text-[11px] text-muted">${DOW.map((w, i) => html`<span key=${w} className=${'py-1 ' + (i === 0 ? 'text-danger' : '')}>${w}</span>`)}</div>
+      <div className="grid grid-cols-7 gap-y-0.5">${cells.map(c => {
+        const k = fmt(c), inM = c.getMonth() === m.getMonth(), isSel = k === sel, isToday = k === today;
+        return html`<button key=${k} type="button" onClick=${() => onSelect(k)} aria-label=${label(k)} aria-pressed=${isSel}
+          className=${'relative mx-auto grid h-8 w-8 place-items-center rounded-full text-xs tabular-nums ' + (isSel ? 'bg-accent font-medium text-onaccent' : inM ? 'hover:bg-card2' : 'text-muted opacity-50 hover:bg-card2')}
+          style=${isToday && !isSel ? { boxShadow: 'inset 0 0 0 1.5px var(--accent)' } : null}>
+          ${c.getDate()}${eventDates.has(k) && html`<span className="absolute bottom-0.5 h-1 w-1 rounded-full" style=${{ background: isSel ? 'var(--onaccent)' : 'var(--accent)' }} />`}
+        </button>`;
+      })}</div>
+    </section>`;
+}
+
+function PresetsPanel({ presets, sel, onApply, onNew, onEdit }) {
+  return html`
+    <section className="order-4 rounded-[28px] border border-line bg-card p-4 shadow-soft xl:order-5">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 font-display text-base"><span className="text-accent"><${Icon} n="star" size=${16} /></span>시간표 프리셋</h2>
+        <button type="button" className="icon-btn" onClick=${onNew} aria-label="새 프리셋"><${Icon} n="plus" /></button>
+      </div>
+      <p className="mb-3 text-xs text-muted">누르면 <b className="font-medium text-ink">${label(sel)}</b> 시간표에 한 번에 추가돼요.</p>
+      <ul className="flex flex-col gap-2">
+        ${presets.length === 0 && html`<li className="rounded-2xl border border-dashed border-line p-3 text-xs text-muted">저장된 프리셋이 없어요. + 를 눌러 만들어 보세요.</li>`}
+        ${presets.map(p => {
+          const s = Math.min(...p.items.map(i => i.start)), e = Math.max(...p.items.map(i => i.end));
+          return html`<li key=${p.id} className="flex items-center gap-1 rounded-2xl border border-line bg-bg p-1.5 pl-3">
+            <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">${p.name}</div><div className="text-[11px] tabular-nums text-muted">${p.items.length}개 · ${mm(s)}–${mm(e)}</div></div>
+            <button type="button" className="icon-btn" aria-label=${p.name + ' 수정'} onClick=${() => onEdit(p)}><${Icon} n="pencil" size=${14} /></button>
+            <button type="button" className="btn btn-soft" onClick=${() => onApply(p)}>적용<${Icon} n="arrow" size=${13} /></button>
+          </li>`;
+        })}
+      </ul>
+    </section>`;
+}
+
+/* ---------- calendar views ---------- */
+function Chip({ e, onOpen, drag, onEnd }) {
+  const { map } = useContext(CatCtx);
+  return html`<button type="button" draggable="true" className="chip" style=${{ '--c': cvar(map, e.cat) }}
+    onClick=${() => onOpen(e)}
+    onDragStart=${ev => { drag.current = { id: e.id, offset: 0, dur: 60 }; ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move'; }}
+    onDragEnd=${onEnd}>
+    <span className="truncate">${e.title}</span></button>`;
+}
+
+function TimeGrid({ days, byDate, today, sel, setSel, openEv, openNew, drag, onDropTimed, onDropUntimed, patchEv, wide }) {
+  const scroller = useRef(null);
+  const { map } = useContext(CatCtx);
+  const resizing = useRef(false);
+  const [hover, setHover] = useState(null);
+  const [barHover, setBarHover] = useState(null);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
+  useEffect(() => { if (scroller.current) scroller.current.scrollTop = 7 * HH; }, [days.length]);
+  const cols = '3rem repeat(' + days.length + ',minmax(0,1fr))';
+  const endDrag = () => { drag.current = null; setHover(null); setBarHover(null); };
+  const calcStart = (e) => {
+    const dr = drag.current; if (!dr) return null;
+    const r = e.currentTarget.getBoundingClientRect();
+    return Math.max(0, Math.min(1440 - dr.dur, snap((e.clientY - r.top) / HH * 60 - dr.offset)));
+  };
+  const startResize = (e, ev) => {
+    e.stopPropagation(); e.preventDefault();
+    resizing.current = true;
+    const y0 = e.clientY, end0 = ev.end; let lastEnd = ev.end;
+    const move = m => {
+      const ne = Math.max(ev.start + 15, Math.min(1440, end0 + snap((m.clientY - y0) / HH * 60)));
+      if (ne !== lastEnd) { lastEnd = ne; patchEv(ev.id, { end: ne }); }
+    };
+    const up = () => { resizing.current = false; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  return html`
+    <div className="overflow-x-auto"><div style=${{ minWidth: wide ? 620 : 0 }}>
+      <div ref=${scroller} className="overflow-y-auto rounded-2xl border border-line" style=${{ maxHeight: 'min(70vh,660px)' }}>
+        <div className="sticky top-0 z-20 bg-card">
+          <div className="grid border-b border-line" style=${{ gridTemplateColumns: cols }}>
+            <div />
+            ${days.map(d => {
+              const dd = parse(d), isT = d === today, isS = d === sel;
+              return html`<button key=${d} type="button" onClick=${() => setSel(d)} className=${'flex flex-col items-center gap-0.5 border-l border-line py-2 ' + (isS ? 'bg-accent-soft' : 'hover:bg-card2')}>
+                <span className=${'text-[11px] ' + (dd.getDay() === 0 ? 'text-danger' : 'text-muted')}>${DOW[dd.getDay()]}</span>
+                <span className=${'grid h-7 min-w-7 place-items-center rounded-full px-1 text-sm font-medium tabular-nums ' + (isT ? 'bg-accent text-onaccent' : '')}>${dd.getDate()}</span>
+              </button>`;
+            })}
+          </div>
+          <div className="grid border-b border-line bg-card2" style=${{ gridTemplateColumns: cols }}>
+            <div className="flex flex-col items-center justify-center gap-1 px-1 text-[10px] text-muted"><${Icon} n="inbox" size=${15} />대기</div>
+            ${days.map(d => {
+              const list = (byDate[d] || []).filter(e => e.start == null);
+              return html`<div key=${d} className="flex max-h-[120px] min-h-[52px] flex-wrap content-start gap-1.5 overflow-y-auto border-l border-line p-1.5 transition-colors"
+                style=${{ background: barHover === d ? 'var(--accent-soft)' : 'transparent' }}
+                onDragOver=${e => { if (!drag.current) return; e.preventDefault(); setBarHover(d); }}
+                onDragLeave=${e => { if (!e.currentTarget.contains(e.relatedTarget)) setBarHover(null); }}
+                onDrop=${e => { e.preventDefault(); onDropUntimed(d); endDrag(); }}>
+                ${list.map(e => html`<${Chip} key=${e.id} e=${e} onOpen=${openEv} drag=${drag} onEnd=${endDrag} />`)}
+                <button type="button" className="icon-btn" style=${{ width: 24, height: 24 }} aria-label=${label(d) + ' 대기 일정 추가'} onClick=${() => openNew({ date: d, start: null })}><${Icon} n="plus" size=${14} /></button>
+              </div>`;
+            })}
+          </div>
+        </div>
+        <div className="grid" style=${{ gridTemplateColumns: cols, paddingTop: 10, paddingBottom: 10 }}>
+          <div className="relative" style=${{ height: 24 * HH }}>
+            ${Array.from({ length: 25 }, (_, i) => html`<span key=${i} className="absolute right-2 -translate-y-1/2 text-[10px] tabular-nums text-muted" style=${{ top: i * HH }}>${pad(i)}:00</span>`)}
+          </div>
+          ${days.map(d => {
+            const laid = layout((byDate[d] || []).filter(e => e.start != null));
+            return html`<div key=${d} className="relative border-l border-line"
+              style=${{ height: 24 * HH, backgroundImage: 'linear-gradient(var(--line) 1px,transparent 1px)', backgroundSize: '100% ' + HH + 'px', borderBottom: '1px solid var(--line)' }}
+              onClick=${e => { if (e.target !== e.currentTarget) return; const y = e.clientY - e.currentTarget.getBoundingClientRect().top; openNew({ date: d, start: Math.min(1380, Math.floor(y / HH) * 60) }); }}
+              onDragOver=${e => {
+                if (!drag.current) return; e.preventDefault();
+                const s = calcStart(e);
+                setHover(h => (h && h.date === d && h.start === s) ? h : { date: d, start: s, dur: drag.current ? drag.current.dur : 60 });
+              }}
+              onDragLeave=${e => { if (!e.currentTarget.contains(e.relatedTarget)) setHover(null); }}
+              onDrop=${e => { e.preventDefault(); const s = calcStart(e); if (s != null) onDropTimed(d, s); endDrag(); }}>
+              ${d === today && html`<div className="pointer-events-none absolute inset-x-0 z-10 h-px bg-accent" style=${{ top: nowMin / 60 * HH }}><span className="absolute -left-1 -top-[3px] h-[7px] w-[7px] rounded-full bg-accent" /></div>`}
+              ${hover && hover.date === d && html`<div className="pointer-events-none absolute inset-x-1 z-10 rounded-lg border-2 border-dashed px-1.5 py-0.5 text-[10px] font-medium tabular-nums"
+                style=${{ top: hover.start / 60 * HH, height: hover.dur / 60 * HH, borderColor: 'var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}>${mm(hover.start)} – ${mm(hover.start + hover.dur)}</div>`}
+              ${laid.map(({ e, lane, cols: c }) => {
+                const h = Math.max(18, (e.end - e.start) / 60 * HH - 2), w = 100 / c;
+                return html`<div key=${e.id} role="button" tabIndex="0" draggable="true" className="ev group absolute cursor-grab overflow-hidden rounded-lg px-2 py-1 active:cursor-grabbing"
+                  style=${{ top: e.start / 60 * HH + 1, height: h, left: 'calc(' + (lane * w) + '% + 2px)', width: 'calc(' + w + '% - 4px)', '--c': cvar(map, e.cat), zIndex: 5 }}
+                  onClick=${ev => { ev.stopPropagation(); openEv(e); }}
+                  onKeyDown=${ev => { if (ev.key === 'Enter') openEv(e); }}
+                  onDragStart=${ev => {
+                    if (resizing.current) { ev.preventDefault(); return; }
+                    const r = ev.currentTarget.getBoundingClientRect(), dur = e.end - e.start;
+                    drag.current = { id: e.id, offset: Math.max(0, Math.min(dur - 15, snap((ev.clientY - r.top) / HH * 60))), dur };
+                    ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragEnd=${endDrag}>
+                  <div className="truncate text-[12px] font-medium leading-tight">${e.title}</div>
+                  ${h >= 34 && html`<div className="text-[10.5px] tabular-nums text-muted">${mm(e.start)} – ${mm(e.end)}</div>`}
+                  <div className="absolute inset-x-0 bottom-0 h-2.5 cursor-ns-resize" style=${{ touchAction: 'none' }} onPointerDown=${ev => startResize(ev, e)} aria-hidden="true">
+                    <span className="mx-auto mt-1 block h-[3px] w-6 rounded-full opacity-60" style=${{ background: 'var(--c)' }} />
+                  </div>
+                </div>`;
+              })}
+            </div>`;
+          })}
+        </div>
+      </div>
+    </div></div>`;
+}
+
+function MonthView({ sel, setSel, setView, byDate, today, openEv, openNew, drag, onDropDate }) {
+  const [over, setOver] = useState(null);
+  const { map } = useContext(CatCtx);
+  const d = parse(sel);
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  const lead = first.getDay();
+  const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const cells = Array.from({ length: Math.ceil((lead + dim) / 7) * 7 }, (_, i) => addDays(first, i - lead));
+  const endDrag = () => { drag.current = null; setOver(null); };
+  return html`
+    <div className="overflow-hidden rounded-2xl border border-line">
+      <div className="grid grid-cols-7 bg-card2 text-center text-[11px]">${DOW.map((w, i) => html`<div key=${w} className=${'py-2 ' + (i === 0 ? 'text-danger' : 'text-muted')}>${w}</div>`)}</div>
+      <div className="grid grid-cols-7">
+        ${cells.map(c => {
+          const k = fmt(c), inM = c.getMonth() === d.getMonth(), isT = k === today, isS = k === sel;
+          const list = [...(byDate[k] || [])].sort((a, b) => (a.start == null ? 2000 : a.start) - (b.start == null ? 2000 : b.start));
+          return html`<div key=${k} className="group min-h-[64px] cursor-pointer border-l border-t border-line p-1 sm:min-h-[108px] sm:p-1.5"
+            style=${{ background: over === k ? 'var(--accent-soft)' : inM ? 'transparent' : 'var(--card2)', boxShadow: isS ? 'inset 0 0 0 2px var(--accent)' : 'none' }}
+            onClick=${() => setSel(k)} onDoubleClick=${() => { setSel(k); setView('day'); }}
+            onDragOver=${e => { if (!drag.current) return; e.preventDefault(); setOver(k); }}
+            onDragLeave=${e => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(null); }}
+            onDrop=${e => { e.preventDefault(); onDropDate(k); endDrag(); }}>
+            <div className="mb-1 flex items-center justify-between">
+              <button type="button" aria-label=${label(k) + ' 일간 보기'} onClick=${e => { e.stopPropagation(); setSel(k); setView('day'); }}
+                className=${'grid h-6 min-w-6 place-items-center rounded-full px-1 text-xs tabular-nums ' + (isT ? 'bg-accent font-medium text-onaccent' : inM ? '' : 'text-muted')}>${c.getDate()}</button>
+              <button type="button" aria-label=${label(k) + ' 일정 추가'} className="icon-btn hidden opacity-0 group-hover:opacity-100 focus:opacity-100 sm:inline-grid" style=${{ width: 22, height: 22 }} onClick=${e => { e.stopPropagation(); openNew({ date: k, start: null }); }}><${Icon} n="plus" size=${13} /></button>
+            </div>
+            <div className="hidden flex-col gap-1 sm:flex">
+              ${list.slice(0, 3).map(e => html`<button key=${e.id} type="button" draggable="true" className=${'mchip' + (e.start == null ? ' untimed' : '')} style=${{ '--c': cvar(map, e.cat) }}
+                onClick=${ev => { ev.stopPropagation(); openEv(e); }}
+                onDragStart=${ev => { drag.current = { id: e.id, offset: 0, dur: 60 }; ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move'; }}
+                onDragEnd=${endDrag}>
+                ${e.start != null && html`<span className="tabular-nums text-muted">${mm(e.start)}</span>`}<span className="truncate">${e.title}</span></button>`)}
+              ${list.length > 3 && html`<span className="pl-1 text-[11px] text-muted">+${list.length - 3}개 더</span>`}
+            </div>
+            <div className="flex flex-wrap gap-0.5 sm:hidden">${list.slice(0, 6).map(e => html`<span key=${e.id} className="h-1.5 w-1.5 rounded-full" style=${{ background: cvar(map, e.cat) }} />`)}</div>
+          </div>`;
+        })}
+      </div>
+    </div>`;
+}
+
+/* ---------- right column ---------- */
+function Check({ on, onClick, text, now }) {
+  return html`<button type="button" onClick=${onClick} aria-pressed=${on} aria-label=${text + (on ? ' 완료 취소' : ' 완료')} className=${'check ' + (on ? 'on' : '') + (now ? ' now' : '')}>${on && html`<${Icon} n="check" size=${12} sw=${3} />`}</button>`;
+}
+
+function Todos({ date, todos, setTodos, onSchedule }) {
+  const { list: cats, map } = useContext(CatCtx);
+  const [cat, setCat] = useState(null);
+  const cur = map[cat] ? cat : (cats[0] ? cats[0].id : '');
+  const [t, setT] = useState('');
+  const list = todos.filter(x => x.date === date);
+  const done = list.filter(x => x.done).length;
+  const add = e => { e.preventDefault(); const v = t.trim(); if (!v) return; setTodos(a => [...a, { id: uid(), date, text: v, done: false, cat: cur }]); setT(''); };
+  return html`
+    <div>
+      <div className="mb-3 flex items-baseline justify-between"><h3 className="font-display text-base">${label(date)} 할 일</h3><span className="text-xs tabular-nums text-muted">${done}/${list.length} 완료</span></div>
+      <form onSubmit=${add} className="mb-3 flex flex-col gap-2"><div className="flex gap-2"><input className="field" aria-label="할 일 추가" placeholder="가볍게 한 줄 추가" value=${t} onChange=${e => setT(e.target.value)} /><button type="submit" className="btn btn-primary" aria-label="추가"><${Icon} n="plus" size=${16} /></button></div><${CatPick} value=${cur} onChange=${setCat} /></form>
+      <ul className="flex flex-col gap-1">
+        ${list.length === 0 && html`<li className="rounded-2xl border border-dashed border-line p-3 text-xs text-muted">이 날의 할 일이 아직 없어요.</li>`}
+        ${list.map(x => html`<li key=${x.id} className="flex items-center gap-2.5 rounded-xl px-1 py-1.5 hover:bg-card2">
+          <${Check} on=${x.done} text=${x.text} onClick=${() => setTodos(a => a.map(y => y.id === x.id ? { ...y, done: !y.done } : y))} />
+          <span className=${'flex-1 text-sm ' + (x.done ? 'text-muted line-through' : '')}>${x.text}</span>
+          <button type="button" title="카테고리 바꾸기" aria-label=${x.text + ' 카테고리: ' + ((map[x.cat] || {}).name || '없음')} className="flex-none rounded-full px-2 py-0.5 text-[11px]" style=${{ background: 'color-mix(in srgb,' + cvar(map, x.cat) + ' 24%,var(--card))' }}
+            onClick=${() => { const i = cats.findIndex(c => c.id === x.cat); const n = cats[(i + 1) % cats.length]; if (n) setTodos(a => a.map(y => y.id === x.id ? { ...y, cat: n.id } : y)); }}>${(map[x.cat] || {}).name || '없음'}</button>
+          <button type="button" className="icon-btn" style=${{ width: 26, height: 26 }} title="시간표 대기 영역에 넣기" aria-label=${x.text + ' 시간표에 넣기'} onClick=${() => onSchedule(x)}><${Icon} n="clock" size=${14} /></button>
+          <button type="button" className="icon-btn" style=${{ width: 26, height: 26 }} aria-label=${x.text + ' 삭제'} onClick=${() => setTodos(a => a.filter(y => y.id !== x.id))}><${Icon} n="x" size=${14} /></button>
+        </li>`)}
+      </ul>
+    </div>`;
+}
+
+function Journal({ date, text, onChange }) {
+  const [flash, setFlash] = useState(false);
+  const tm = useRef(null);
+  const change = v => { onChange(v); setFlash(true); clearTimeout(tm.current); tm.current = setTimeout(() => setFlash(false), 1200); };
+  return html`
+    <div>
+      <div className="mb-3 flex items-baseline justify-between"><h3 className="font-display text-base">${label(date)}의 기록</h3><span className="text-xs text-muted" aria-live="polite">${flash ? '저장됨' : '자동 저장'}</span></div>
+      <textarea className="field lined" rows="10" aria-label="오늘의 일기" placeholder="오늘 하루는 어땠나요? 짧게라도 남겨보세요." value=${text} onChange=${e => change(e.target.value)} style=${{ resize: 'vertical', padding: '4px 14px' }} />
+      <div className="mt-2 text-right text-xs tabular-nums text-muted">${text.length}자</div>
+    </div>`;
+}
+
+/* ---------- header: clock, d-day, sync ---------- */
+const diffDays = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+const ddText = n => n === 0 ? 'D-Day' : n > 0 ? 'D-' + n : 'D+' + (-n);
+
+function Clock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 15000); return () => clearInterval(t); }, []);
+  const h = now.getHours(), ap = h < 12 ? '오전' : '오후', h12 = h % 12 || 12;
+  return html`
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+      <h1 className="font-display text-xl leading-tight sm:text-2xl">${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일 ${DOW[now.getDay()]}요일</h1>
+      <span className="text-lg tabular-nums text-accent-strong sm:text-xl" aria-label="현재 시각">${ap} ${h12}:${pad(now.getMinutes())}</span>
+    </div>`;
+}
+
+function DdayBar({ items, today, onEdit }) {
+  const up = items.map(d => ({ ...d, n: diffDays(today, d.date) })).filter(d => d.n >= 0).sort((a, b) => a.n - b.n).slice(0, 3);
+  return html`
+    <div className="flex flex-wrap items-center gap-2">
+      ${up.map(d => html`<button key=${d.id} type="button" onClick=${onEdit} title=${d.date} className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-sm shadow-soft">
+        <span className="max-w-[9rem] truncate">${d.title}</span><b className="font-medium tabular-nums text-accent-strong">${ddText(d.n)}</b></button>`)}
+      <button type="button" className="btn" onClick=${onEdit}><${Icon} n="plus" size=${14} />D-day</button>
+    </div>`;
+}
+
+function DdayModal({ items, setItems, today, onClose }) {
+  const upd = (id, p) => setItems(items.map(x => x.id === id ? { ...x, ...p } : x));
+  const add = () => setItems([...items, { id: uid(), title: '', date: today }]);
+  const finish = () => { setItems(items.filter(x => x.title.trim())); onClose(); };
+  return html`
+    <${Modal} title="D-day 관리" onClose=${finish}>
+      <p className="mb-3 text-xs text-muted">시험, 제출일, 여행처럼 기다리는 날을 등록하면 상단에 남은 날짜가 보여요. 가까운 순서로 최대 3개까지 표시해요.</p>
+      <div className="flex flex-col gap-3">
+        ${items.length === 0 && html`<p className="rounded-2xl border border-dashed border-line p-3 text-xs text-muted">아직 등록한 D-day가 없어요.</p>`}
+        ${items.map(x => {
+          const n = diffDays(today, x.date);
+          return html`<div key=${x.id} className="rounded-2xl border border-line bg-bg p-3">
+            <div className="flex items-center gap-2">
+              <input className="field" aria-label="D-day 이름" placeholder="이름 (예: 기말고사)" value=${x.title} onChange=${e => upd(x.id, { title: e.target.value })} />
+              <button type="button" className="icon-btn" aria-label=${(x.title || 'D-day') + ' 삭제'} onClick=${() => setItems(items.filter(y => y.id !== x.id))}><${Icon} n="trash" size=${15} /></button>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <input type="date" className="field" aria-label="날짜" value=${x.date} onChange=${e => e.target.value && upd(x.id, { date: e.target.value })} />
+              <span className=${'w-16 flex-none text-right font-medium tabular-nums ' + (n < 0 ? 'text-muted' : 'text-accent-strong')}>${ddText(n)}</span>
+            </div>
+          </div>`;
+        })}
+      </div>
+      <div className="mt-4 flex items-center justify-between">
+        <button type="button" className="btn" onClick=${add}><${Icon} n="plus" size=${14} />D-day 추가</button>
+        <button type="button" className="btn btn-primary" onClick=${finish}>완료</button>
+      </div>
+    <//>`;
+}
+
+const SYNC_TEXT = {
+  connecting: ['연결 중…', '계정 연결을 확인하고 있어요.'],
+  saving: ['저장 중…', '변경 내용을 계정에 저장하고 있어요.'],
+  synced: ['동기화됨', '변경 내용이 계정에 저장돼요. 같은 계정으로 열면 다른 기기에서도 이어져요.'],
+  local: ['이 기기에만 저장', 'claude.ai에 로그인한 상태로 이 페이지를 열면 기기 간 동기화가 켜져요.'],
+  offline: ['연결 지연 · 이 기기에 저장', '계정에 아직 연결하지 못했어요. 입력한 내용은 이 기기에 저장돼요.'],
+  error: ['동기화 실패', '계정에 저장하지 못했어요. 이 기기에는 저장돼 있고, 다음 변경 때 다시 시도해요.']
+};
+function SyncChip({ sync, me }) {
+  const t = SYNC_TEXT[sync] || SYNC_TEXT.local;
+  const dot = sync === 'synced' ? 'var(--accent)' : (sync === 'saving' || sync === 'connecting') ? 'var(--e1)' : sync === 'error' ? 'var(--danger)' : 'var(--muted)';
+  return html`
+    <div className="flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-sm shadow-soft" title=${t[1]} role="status">
+      ${me && html`<img src=${me.avatar} alt="" className="h-6 w-6 rounded-full" />`}
+      ${me && me.name && html`<span className="max-w-[8rem] truncate">${me.name}</span>`}
+      <span className="inline-flex items-center gap-1.5 text-muted"><span className="h-2 w-2 rounded-full" style=${{ background: dot }} />${t[0]}</span>
+    </div>`;
+}
+
+/* ---------- app ---------- */
+function App() {
+  const [data, setData] = useState(() => load() || migrate(seed()));
+  const [photo, setPhoto] = useState(() => { try { return localStorage.getItem(PKEY); } catch (e) { return null; } });
+  const [sel, setSel] = useState(() => fmt(new Date()));
+  const [view, setView] = useState('week');
+  const [modal, setModal] = useState(null);
+  const [pmodal, setPmodal] = useState(null);
+  const [tab, setTab] = useState('todo');
+  const [toast, setToast] = useState(null);
+  const [qa, setQa] = useState('');
+  const [catModal, setCatModal] = useState(false);
+  const [ddModal, setDdModal] = useState(false);
+  const [sync, setSync] = useState('connecting');
+  const [me, setMe] = useState(null);
+  const [, setTick] = useState(0);
+  const docRef = useRef(null), photoDocRef = useRef(null), ready = useRef(false), firstRun = useRef(true);
+  const lastSynced = useRef(null), pushT = useRef(null), inflight = useRef(false);
+  const localStamp = useRef(readStamp());
+  const dataRef = useRef(null), photoRef = useRef(null);
+  const drag = useRef(null);
+  const toastT = useRef(null);
+  const today = fmt(new Date());
+
+  dataRef.current = data; photoRef.current = photo;
+
+  /* ---- account sync: one private document per signed-in person ---- */
+  const stampNow = () => { localStamp.current = Date.now(); try { localStorage.setItem(STAMP, String(localStamp.current)); } catch (e) {} };
+  const pushNow = async () => {
+    if (!docRef.current) return;
+    if (inflight.current) { clearTimeout(pushT.current); pushT.current = setTimeout(pushNow, 500); return; }
+    inflight.current = true;
+    try {
+      if (!localStamp.current) stampNow();
+      await docRef.current.set({ ...JSON.parse(JSON.stringify(dataRef.current)), updatedAt: localStamp.current });
+      setSync('synced');
+    } catch (e) { setSync('error'); }
+    inflight.current = false;
+  };
+  const schedulePush = () => { setSync('saving'); clearTimeout(pushT.current); pushT.current = setTimeout(pushNow, 900); };
+
+  useEffect(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+    if (firstRun.current) { firstRun.current = false; lastSynced.current = data; return; }
+    if (data === lastSynced.current) return;
+    lastSynced.current = data;
+    stampNow();
+    if (ready.current) schedulePush();
+  }, [data]);
+
+  useEffect(() => {
+    let dead = false; const unsubs = [];
+    const timer = setTimeout(() => { if (!ready.current) setSync(s => s === 'connecting' ? 'offline' : s); }, 10000);
+    const tick = setInterval(() => setTick(x => x + 1), 60000);
+    const applyRemote = r => {
+      const { updatedAt, ...rest } = r;
+      const d = migrate({ events: [], presets: [], todos: [], journal: {}, caption: '', ddays: [], ...rest });
+      lastSynced.current = d; localStamp.current = updatedAt;
+      try { localStorage.setItem(STAMP, String(updatedAt)); } catch (e) {}
+      setData(d);
+    };
+    (async () => {
+      try {
+        const c = window.claude;
+        if (!c || !c.use) { setSync('local'); return; }
+        const [db, user] = await Promise.all([c.use('db'), c.use('user')]);
+        if (!db || !user) { setSync('local'); return; }
+        const [id, mine] = await Promise.all([user.id(), user.me()]);
+        if (!id) { setSync('local'); return; }
+        if (dead) return;
+        setMe({ name: mine.name, avatar: mine.avatarUrl });
+        docRef.current = db.doc('data/users/' + id + '/planner');
+        photoDocRef.current = db.doc('data/users/' + id + '/photo');
+        unsubs.push(docRef.current.onSnapshot(snap => {
+          if (dead || snap.metadata.fromCache) return;
+          const first = !ready.current;
+          if (snap.exists) {
+            const r = snap.data();
+            if (typeof r.updatedAt === 'number' && r.updatedAt > localStamp.current) applyRemote(r);
+            else if (first && localStamp.current > (r.updatedAt || 0)) pushNow();
+          } else if (first) { pushNow(); }
+          ready.current = true;
+          setSync(s => (s === 'connecting' || s === 'offline') ? 'synced' : s);
+        }, () => setSync('error')));
+        unsubs.push(photoDocRef.current.onSnapshot(snap => {
+          if (dead || snap.metadata.fromCache) return;
+          if (snap.exists) {
+            const u = snap.data().url || null;
+            if (u !== photoRef.current) { setPhoto(u); try { if (u) localStorage.setItem(PKEY, u); else localStorage.removeItem(PKEY); } catch (e) {} }
+          } else if (photoRef.current) { photoDocRef.current.set({ url: photoRef.current }).catch(() => {}); }
+        }, () => {}));
+      } catch (e) { setSync('local'); }
+    })();
+    return () => { dead = true; clearTimeout(timer); clearInterval(tick); unsubs.forEach(u => u && u()); };
+  }, []);
+  const say = m => { setToast(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(null), 2400); };
+
+  const setKey = k => fn => setData(d => ({ ...d, [k]: typeof fn === 'function' ? fn(d[k]) : fn }));
+  const setTodos = setKey('todos');
+  const patchEv = (id, p) => setData(d => ({ ...d, events: d.events.map(e => e.id === id ? { ...e, ...(typeof p === 'function' ? p(e) : p) } : e) }));
+
+  const byDate = useMemo(() => { const m = {}; data.events.forEach(e => { (m[e.date] = m[e.date] || []).push(e); }); return m; }, [data.events]);
+  const eventDates = useMemo(() => new Set(data.events.map(e => e.date)), [data.events]);
+  const ctx = useMemo(() => ({ list: data.cats, map: Object.fromEntries(data.cats.map(c => [c.id, c])) }), [data.cats]);
+  const defCat = data.cats[0] ? data.cats[0].id : '';
+  const deleteCat = id => setData(d => {
+    const rest = d.cats.filter(c => c.id !== id);
+    if (!rest.length) return d;
+    const fb = rest[0].id, fx = o => o.cat === id ? { ...o, cat: fb } : o;
+    return { ...d, cats: rest, events: d.events.map(fx), todos: d.todos.map(fx), presets: d.presets.map(p => ({ ...p, items: p.items.map(fx) })) };
+  });
+
+  const openEv = e => setModal({ key: e.id, ev: e });
+  const openNew = ({ date, start }) => setModal({ key: 'new' + uid(), ev: { id: null, title: '', date, start, end: start == null ? null : Math.min(1440, start + 60), cat: defCat } });
+  const saveEvent = ev => {
+    if (ev.id) patchEv(ev.id, ev);
+    else setData(d => ({ ...d, events: [...d.events, { ...ev, id: uid() }] }));
+    setModal(null);
+  };
+  const deleteEvent = id => { setData(d => ({ ...d, events: d.events.filter(e => e.id !== id) })); setModal(null); say('일정을 삭제했어요'); };
+
+  const onDropTimed = (date, start) => {
+    const id = drag.current && drag.current.id; if (!id) return;
+    patchEv(id, e => { const dur = e.start == null ? 60 : e.end - e.start; const s = Math.max(0, Math.min(1440 - dur, start)); return { date, start: s, end: s + dur }; });
+    setSel(date); say(mm(start) + '에 배치했어요');
+  };
+  const onDropUntimed = date => { const id = drag.current && drag.current.id; if (id) patchEv(id, { date, start: null, end: null }); };
+  const onDropDate = date => { const id = drag.current && drag.current.id; if (id) patchEv(id, { date }); };
+
+  const scheduleTodo = t => {
+    setData(d => ({ ...d, events: [...d.events, { id: uid(), title: t.text, date: t.date, start: null, end: null, cat: t.cat }] }));
+    setSel(t.date);
+    if (view === 'month') setView('day');
+    say('‘' + t.text + '’을 대기 영역에 넣었어요 · 시간표로 끌어다 놓으세요');
+  };
+  const quickAdd = e => {
+    e.preventDefault(); const v = qa.trim(); if (!v) return;
+    setData(d => ({ ...d, events: [...d.events, { id: uid(), title: v, date: sel, start: null, end: null, cat: defCat }] }));
+    setQa(''); if (view === 'month') say('대기 영역에 추가했어요 · 주/일 보기에서 시간표로 끌어다 놓으세요');
+  };
+
+  const applyPreset = p => {
+    const items = p.items.map(i => ({ id: uid(), title: i.title, date: sel, start: i.start, end: i.end, cat: i.cat }));
+    setData(d => ({ ...d, events: [...d.events, ...items] }));
+    if (view === 'month') setView('day');
+    say('‘' + p.name + '’ ' + items.length + '개 일정을 ' + label(sel) + '에 추가했어요');
+  };
+  const savePreset = p => {
+    const { fresh, ...rest } = p;
+    setData(d => ({ ...d, presets: d.presets.some(x => x.id === rest.id) ? d.presets.map(x => x.id === rest.id ? rest : x) : [...d.presets, rest] }));
+    setPmodal(null); say('프리셋을 저장했어요');
+  };
+
+  const pickPhoto = f => readImage(f, url => {
+    setPhoto(url);
+    try { localStorage.setItem(PKEY, url); } catch (e) {}
+    if (photoDocRef.current) photoDocRef.current.set({ url }).catch(() => say('사진을 계정에 저장하지 못했어요'));
+  });
+  const resetPhoto = () => {
+    setPhoto(null);
+    try { localStorage.removeItem(PKEY); } catch (e) {}
+    if (photoDocRef.current) photoDocRef.current.set({ url: null }).catch(() => {});
+  };
+
+  const shift = dir => { const d = parse(sel); setSel(fmt(view === 'month' ? addMonths(d, dir) : addDays(d, view === 'week' ? 7 * dir : dir))); };
+  const days = view === 'day' ? [sel] : (() => { const s = addDays(parse(sel), -parse(sel).getDay()); return Array.from({ length: 7 }, (_, i) => fmt(addDays(s, i))); })();
+  const dayTimed = (byDate[sel] || []).filter(e => e.start != null).sort((a, b) => a.start - b.start);
+
+  return html`
+  <${CatCtx.Provider} value=${ctx}>
+  <div className="mx-auto max-w-[1500px]">
+    <header className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="grid h-10 w-10 flex-none place-items-center rounded-2xl bg-accent-soft text-accent-strong"><${Icon} n="leaf" size=${20} /></span>
+        <${Clock} />
+        <${DdayBar} items=${data.ddays || []} today=${today} onEdit=${() => setDdModal(true)} />
+      </div>
+      <${SyncChip} sync=${sync} me=${me} />
+    </header>
+
+    <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[16rem_minmax(0,1fr)_20rem] xl:items-start">
+      <aside className="contents xl:flex xl:flex-col xl:gap-5">
+        <${PhotoWidget} photo=${photo} onPick=${pickPhoto} onReset=${resetPhoto} caption=${data.caption} onCaption=${v => setData(d => ({ ...d, caption: v }))} today=${today} />
+        <${MiniCal} sel=${sel} onSelect=${setSel} eventDates=${eventDates} today=${today} />
+        <${PresetsPanel} presets=${data.presets} sel=${sel} onApply=${applyPreset}
+          onNew=${() => setPmodal({ id: uid(), name: '', fresh: true, items: [{ id: uid(), title: '', start: 540, end: 600, cat: defCat }] })}
+          onEdit=${p => setPmodal({ ...p, items: p.items.map(i => ({ ...i })) })} />
+        <${CatsPanel} onEdit=${() => setCatModal(true)} />
+      </aside>
+
+      <main className="order-2 min-w-0 rounded-[28px] border border-line bg-card p-3 shadow-soft sm:p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1">
+            <button type="button" className="icon-btn" aria-label="이전" onClick=${() => shift(-1)}><${Icon} n="left" size=${18} /></button>
+            <button type="button" className="btn" onClick=${() => setSel(today)}>오늘</button>
+            <button type="button" className="icon-btn" aria-label="다음" onClick=${() => shift(1)}><${Icon} n="right" size=${18} /></button>
+            <h2 className="ml-2 font-display text-lg tabular-nums sm:text-xl">${titleOf(view, sel)}</h2>
+          </div>
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-card2 p-1" role="tablist" aria-label="보기 전환">
+            ${[['month', '월'], ['week', '주'], ['day', '일']].map(([k, n]) => html`<button key=${k} type="button" role="tab" aria-selected=${view === k} onClick=${() => setView(k)} className=${'rounded-lg px-4 py-1.5 text-sm ' + (view === k ? 'bg-card font-medium shadow-soft' : 'text-muted hover:text-ink')}>${n}</button>`)}
+          </div>
+        </div>
+        <form onSubmit=${quickAdd} className="mb-3 flex gap-2">
+          <input className="field" aria-label="시간 없이 빠르게 추가" placeholder=${label(sel) + ' · 시간 없이 빠르게 추가 (Enter)'} value=${qa} onChange=${e => setQa(e.target.value)} />
+          <button type="button" className="btn btn-primary flex-none" onClick=${() => openNew({ date: sel, start: view === 'month' ? null : 540 })}><${Icon} n="plus" size=${15} />일정</button>
+        </form>
+        ${view === 'month'
+          ? html`<${MonthView} sel=${sel} setSel=${setSel} setView=${setView} byDate=${byDate} today=${today} openEv=${openEv} openNew=${openNew} drag=${drag} onDropDate=${onDropDate} />`
+          : html`<${TimeGrid} key=${view} days=${days} byDate=${byDate} today=${today} sel=${sel} setSel=${setSel} openEv=${openEv} openNew=${openNew} drag=${drag} onDropTimed=${onDropTimed} onDropUntimed=${onDropUntimed} patchEv=${patchEv} wide=${view === 'week'} />`}
+        <p className="mt-3 text-xs text-muted">${view === 'month' ? '일정을 다른 날짜로 끌어 옮길 수 있어요. 날짜를 두 번 누르면 일간 보기로 이동해요.' : '대기 영역의 칩을 시간표로 끌어다 놓으면 시간이 정해져요. 블록은 아래 모서리를 끌어 길이를 조절해요.'}</p>
+      </main>
+
+      <section className="order-3 rounded-[28px] border border-line bg-card p-4 shadow-soft">
+        <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-card2 p-1" role="tablist" aria-label="기록 패널">
+          ${[['todo', 'list', '할 일'], ['journal', 'book', '일기']].map(([k, ic, n]) => html`<button key=${k} type="button" role="tab" aria-selected=${tab === k} onClick=${() => setTab(k)} className=${'flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-sm ' + (tab === k ? 'bg-card font-medium shadow-soft' : 'text-muted hover:text-ink')}><${Icon} n=${ic} size=${14} />${n}</button>`)}
+        </div>
+        <div className="xl:max-h-[calc(100vh-9rem)] xl:overflow-y-auto">
+          ${tab === 'todo' && html`<${Todos} date=${sel} todos=${data.todos} setTodos=${setTodos} onSchedule=${scheduleTodo} />`}
+          ${tab === 'journal' && html`<${Journal} date=${sel} text=${data.journal[sel] || ''} onChange=${v => setData(d => ({ ...d, journal: { ...d.journal, [sel]: v } }))} />`}
+        </div>
+      </section>
+    </div>
+
+    ${modal && html`<${EventModal} key=${modal.key} ev=${modal.ev} onSave=${saveEvent} onDelete=${deleteEvent} onClose=${() => setModal(null)} />`}
+    ${pmodal && html`<${PresetModal} key=${pmodal.id} preset=${pmodal} dayEvents=${dayTimed} selLabel=${label(sel)} onSave=${savePreset}
+      onDelete=${id => { setData(d => ({ ...d, presets: d.presets.filter(p => p.id !== id) })); setPmodal(null); say('프리셋을 삭제했어요'); }} onClose=${() => setPmodal(null)} />`}
+    ${catModal && html`<${CatModal} cats=${data.cats} setCats=${v => setData(d => ({ ...d, cats: v }))} onDelete=${deleteCat} onClose=${() => setCatModal(false)} />`}
+    ${ddModal && html`<${DdayModal} items=${data.ddays || []} setItems=${v => setData(d => ({ ...d, ddays: v }))} today=${today} onClose=${() => setDdModal(false)} />`}
+    ${toast && html`<div role="status" className="fixed left-1/2 z-[60] max-w-[90vw] -translate-x-1/2 rounded-full px-4 py-2 text-sm shadow-soft" style=${{ bottom: 'calc(16px + env(safe-area-inset-bottom,0px))', background: 'var(--ink)', color: 'var(--bg)' }}>${toast}</div>`}
+  </div>
+  <//>`;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+}
+</script>
+</body>
+</html>
