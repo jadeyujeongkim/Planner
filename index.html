@@ -41,8 +41,6 @@ tailwind.config = {
 };
 </script>
 <style>
-/* Layout concept: three-column diary desk. Left = photo frame + mini calendar + presets,
-   center = calendar with unscheduled bar over a 24h timetable, right = todo / journal. */
 :root{
   --bg:#f6f4ee; --card:#fdfcf8; --card2:#eeece3; --line:#e0ddd0;
   --ink:#26332a; --muted:#697769;
@@ -112,8 +110,7 @@ body{
 const { useState, useEffect, useRef, useMemo, useContext } = React;
 const html = htm.bind(React.createElement);
 
-/* ---------- constants & helpers ---------- */
-const HH = 52; // px per hour in the timetable
+const HH = 52; 
 const DOW = ['일','월','화','수','목','금','토'];
 const COLOR_NAMES = ['그린','옐로우','블루','핑크','퍼플','오렌지','민트','그레이'];
 const DEFAULT_CATS = [
@@ -126,30 +123,29 @@ const DEFAULT_CATS = [
 const OLD_MAP = ['cat-leisure', 'cat-leisure', 'cat-health', 'cat-work', 'cat-study', 'cat-life'];
 const CatCtx = React.createContext({ list: [], map: {} });
 const cvar = (m, id) => 'var(--e' + ((m[id] || { color: 7 }).color) + ')';
-/* older saved data used a numeric color per item; convert it to a category */
+
 function migrate(d) {
   const x = { ...d };
-  delete x.projects;
+  delete x.presets; // 기존 프리셋 제거 반영
   if (!x.ddays) x.ddays = [];
+  if (!x.favorites) x.favorites = [];
   if (!x.cats) x.cats = DEFAULT_CATS.map(c => ({ ...c }));
   const fix = o => (o.cat ? o : { ...o, cat: OLD_MAP[o.color] || 'cat-life' });
-  x.events = x.events.map(fix);
-  x.presets = x.presets.map(p => ({ ...p, items: p.items.map(fix) }));
-  x.todos = x.todos.map(fix);
+  x.events = (x.events || []).map(fix);
+  x.todos = (x.todos || []).map(fix);
   return x;
 }
 const KEY = 'sage-planner-v1', PKEY = 'sage-planner-photo-v1', STAMP = 'sage-planner-stamp-v1';
 const readStamp = () => { try { return Number(localStorage.getItem(STAMP)) || 0; } catch (e) { return 0; } };
 const pad = n => String(n).padStart(2, '0');
 const fmt = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const parse = s => { const [y, m, d] = (s || '').split('-').map(Number); return new Date(y || 2026, (m || 1) - 1, d || 1); };
 const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const addMonths = (d, n) => {
   const last = new Date(d.getFullYear(), d.getMonth() + n + 1, 0).getDate();
   return new Date(d.getFullYear(), d.getMonth() + n, Math.min(d.getDate(), last));
 };
 const mm = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
-const snap = m => Math.round(m / 15) * 15;
 const uid = () => Math.random().toString(36).slice(2, 9);
 const label = s => { const d = parse(s); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 (' + DOW[d.getDay()] + ')'; };
 
@@ -163,7 +159,6 @@ function titleOf(view, sel) {
     : (s.getMonth() + 1) + '월 ' + s.getDate() + '일 – ' + (e.getMonth() + 1) + '월 ' + e.getDate() + '일';
 }
 
-/* lay out overlapping blocks side by side */
 function layout(evs) {
   const s = [...evs].sort((a, b) => a.start - b.start || b.end - a.end);
   const out = []; let cluster = [], clusterEnd = -1, laneEnds = [];
@@ -179,7 +174,6 @@ function layout(evs) {
   return out;
 }
 
-/* ---------- icons (Lucide-style paths) ---------- */
 const ICONS = {
   left: ['m15 18-6-6 6-6'], right: ['m9 18 6-6-6-6'],
   plus: ['M5 12h14', 'M12 5v14'], x: ['M18 6 6 18', 'm6 6 12 12'], check: ['M20 6 9 17l-5-5'],
@@ -201,7 +195,6 @@ function Icon({ n, size = 16, sw = 1.8 }) {
   return html`<svg viewBox="0 0 24 24" width=${size} height=${size} fill="none" stroke="currentColor" strokeWidth=${sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">${ICONS[n].map((d, i) => html`<path key=${i} d=${d} />`)}</svg>`;
 }
 
-/* ---------- default photo (embedded so it works offline) ---------- */
 const DEFAULT_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">' +
   '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef2e6"/><stop offset="1" stop-color="#d3e0cc"/></linearGradient></defs>' +
@@ -221,7 +214,6 @@ function readImage(file, cb) {
   r.onload = () => {
     const img = new Image();
     img.onload = () => {
-      /* keep the stored photo small enough to sync (a database document holds at most 256 KiB) */
       let side = 900, q = 0.78, out = '';
       for (let i = 0; i < 6; i++) {
         const sc = Math.min(1, side / Math.max(img.width, img.height));
@@ -239,38 +231,34 @@ function readImage(file, cb) {
   r.readAsDataURL(file);
 }
 
-/* ---------- seed data & persistence ---------- */
 function seed() {
   const t = new Date(), d0 = fmt(t), d1 = fmt(addDays(t, 1)), dm = fmt(addDays(t, -1));
-  const ev = (title, date, start, end, cat) => ({ id: uid(), title, date, start, end, cat });
-  const it = (title, start, end, cat) => ({ id: uid(), title, start, end, cat });
-  const st = (text, done) => ({ id: uid(), text, done });
+  const ev = (title, date, start, end, cat, repeat='none', endDate='') => ({ id: uid(), title, date, start, end, cat, repeat, endDate });
   return {
     caption: '천천히, 하지만 꾸준히',
     events: [
-      ev('아침 스트레칭', d0, 420, 450, 'cat-health'), ev('팀 미팅', d0, 840, 900, 'cat-work'), ev('독서', d0, 1260, 1320, 'cat-leisure'),
-      ev('수학 숙제하기', d0, 600, 660, 'cat-study'), ev('장보기', d0, null, null, 'cat-life'), ev('엄마께 전화', d0, null, null, 'cat-life'),
-      ev('치과 예약', d1, 630, 690, 'cat-health'), ev('운동 계획 세우기', d1, null, null, 'cat-health'), ev('도서관 반납', dm, null, null, 'cat-leisure')
+      ev('아침 스트레칭', d0, 420, 450, 'cat-health', 'daily'), 
+      ev('팀 미팅', d0, 840, 900, 'cat-work'), 
+      ev('기말고사 기간', d0, null, null, 'cat-study', 'none', fmt(addDays(t, 3)))
     ],
-    presets: [
-      { id: uid(), name: '월/수 학교 시간표', items: [it('수학', 540, 630, 'cat-study'), it('영어', 640, 720, 'cat-study'), it('역사', 780, 870, 'cat-study'), it('동아리', 900, 960, 'cat-leisure')] },
-      { id: uid(), name: '시험기간 루틴', items: [it('아침 복습', 420, 480, 'cat-study'), it('집중 공부 1', 540, 720, 'cat-study'), it('집중 공부 2', 780, 930, 'cat-study'), it('운동', 960, 1020, 'cat-health'), it('오답 정리', 1140, 1290, 'cat-study')] }
+    favorites: [
+      { id: uid(), title: '아침 루틴', start: 420, end: 480, cat: 'cat-health' },
+      { id: uid(), title: '집중 공부', start: 540, end: 720, cat: 'cat-study' }
     ],
-    ddays: [{ id: uid(), title: '기말고사 (예시)', date: fmt(addDays(t, 14)) }],
+    ddays: [{ id: uid(), title: '기말고사', date: fmt(addDays(t, 14)) }],
     todos: [
-      { id: uid(), date: d0, text: '수학 숙제하기', done: false, cat: 'cat-study' },
-      { id: uid(), date: d0, text: '책 30쪽 읽기', done: true, cat: 'cat-leisure' },
-      { id: uid(), date: d0, text: '물 2L 마시기', done: false, cat: 'cat-health' }
+      { id: uid(), date: d0, text: '수학 숙제하기', done: false, cat: 'cat-study', repeat: 'none' },
+      { id: uid(), date: d0, text: '물 2L 마시기', done: false, cat: 'cat-health', repeat: 'daily' }
     ],
     journal: {}
   };
 }
+
 function load() {
-  try { const r = localStorage.getItem(KEY); if (r) return migrate(Object.assign({ events: [], presets: [], todos: [], journal: {}, caption: '', ddays: [] }, JSON.parse(r))); } catch (e) {}
+  try { const r = localStorage.getItem(KEY); if (r) return migrate(Object.assign({ events: [], todos: [], journal: {}, caption: '', ddays: [], favorites: [] }, JSON.parse(r))); } catch (e) {}
   return null;
 }
 
-/* ---------- small shared components ---------- */
 function Modal({ title, onClose, children }) {
   useEffect(() => {
     const k = e => { if (e.key === 'Escape') onClose(); };
@@ -293,9 +281,30 @@ function Modal({ title, onClose, children }) {
     </div>`;
 }
 
-function TimeSelect({ value, onChange, min = 0, max = 1440, label: lb }) {
-  const opts = []; for (let m = min; m <= max; m += 15) opts.push(m);
-  return html`<select aria-label=${lb} value=${value} onChange=${e => onChange(+e.target.value)} className="field">${opts.map(m => html`<option key=${m} value=${m}>${mm(m)}</option>`)}</select>`;
+/* 1분 단위 도르래/피커 스타일 시간 설정 컴포넌트 */
+function TimePicker({ value, onChange, label: lb }) {
+  // value는 분 (0 ~ 1440)
+  const safeVal = value != null ? value : 540;
+  const hour = Math.floor(safeVal / 60);
+  const min = safeVal % 60;
+
+  return html`
+    <div className="flex items-center gap-2 rounded-xl bg-bg p-2 border border-line" aria-label=${lb}>
+      <div className="flex items-center gap-1 flex-1 justify-center">
+        <span className="text-xs text-muted">시</span>
+        <select value=${hour} onChange=${e => onChange(Number(e.target.value) * 60 + min)} className="field py-1 px-2 text-center font-bold">
+          ${Array.from({length: 24}, (_, i) => html`<option key=${i} value=${i}>${pad(i)}</option>`)}
+        </select>
+      </div>
+      <span className="font-bold">:</span>
+      <div className="flex items-center gap-1 flex-1 justify-center">
+        <span className="text-xs text-muted">분 (1분단위)</span>
+        <select value=${min} onChange=${e => onChange(hour * 60 + Number(e.target.value))} className="field py-1 px-2 text-center font-bold">
+          ${Array.from({length: 60}, (_, i) => html`<option key=${i} value=${i}>${pad(i)}</option>`)}
+        </select>
+      </div>
+    </div>
+  `;
 }
 
 function Swatches({ value, onChange }) {
@@ -304,7 +313,6 @@ function Swatches({ value, onChange }) {
       className="h-7 w-7 rounded-full" style=${{ background: 'var(--e' + i + ')', boxShadow: value === i ? '0 0 0 2px var(--card),0 0 0 4px var(--e' + i + ')' : 'none' }} />`)}</div>`;
 }
 
-/* ---------- categories (name + color) ---------- */
 function CatPick({ value, onChange }) {
   const { list } = useContext(CatCtx);
   return html`<div className="flex flex-wrap gap-2" role="radiogroup" aria-label="카테고리">${list.map(c => html`
@@ -323,7 +331,6 @@ function CatsPanel({ onEdit }) {
         <button type="button" className="btn" onClick=${onEdit}><${Icon} n="pencil" size=${13} />편집</button>
       </div>
       <ul className="flex flex-wrap gap-2">${list.map(c => html`<li key=${c.id} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm" style=${{ background: 'color-mix(in srgb,var(--e' + c.color + ') 22%,var(--card))' }}><span className="h-2.5 w-2.5 rounded-full" style=${{ background: 'var(--e' + c.color + ')' }} />${c.name}</li>`)}</ul>
-      <p className="mt-3 text-xs text-muted">일정과 할 일을 만들 때 카테고리를 고르면 이 색으로 표시돼요.</p>
     </section>`;
 }
 
@@ -333,62 +340,93 @@ function CatModal({ cats, setCats, onDelete, onClose }) {
   const finish = () => { setCats(cats.map(c => c.name.trim() ? c : { ...c, name: '이름 없음' })); onClose(); };
   return html`
     <${Modal} title="카테고리 관리" onClose=${finish}>
-      <p className="mb-3 text-xs text-muted">이름과 색을 짝지어 두세요. 예: 여가 – 그린, 학업 – 옐로우. 바꾸면 기존 일정 색도 함께 바뀌어요.</p>
       <div className="flex flex-col gap-3">
         ${cats.map(c => html`<div key=${c.id} className="rounded-2xl border border-line bg-bg p-3">
           <div className="flex items-center gap-2">
             <span className="h-6 w-6 flex-none rounded-full" style=${{ background: 'var(--e' + c.color + ')' }} />
-            <input className="field" aria-label="카테고리 이름" placeholder="이름 (예: 여가)" value=${c.name} onChange=${e => upd(c.id, { name: e.target.value })} />
-            <button type="button" className="icon-btn" aria-label=${(c.name || '카테고리') + ' 삭제'} disabled=${cats.length <= 1} style=${{ opacity: cats.length <= 1 ? .4 : 1 }} onClick=${() => onDelete(c.id)}><${Icon} n="trash" size=${15} /></button>
+            <input className="field" aria-label="카테고리 이름" placeholder="이름" value=${c.name} onChange=${e => upd(c.id, { name: e.target.value })} />
+            <button type="button" className="icon-btn" aria-label="삭제" disabled=${cats.length <= 1} onClick=${() => onDelete(c.id)}><${Icon} n="trash" size=${15} /></button>
           </div>
           <div className="mt-2.5 pl-8"><${Swatches} value=${c.color} onChange=${v => upd(c.id, { color: v })} /></div>
         </div>`)}
       </div>
-      <p className="mt-3 text-xs text-muted">카테고리를 삭제하면 그 카테고리의 일정과 할 일은 맨 위 카테고리로 옮겨져요.</p>
       <div className="mt-4 flex items-center justify-between">
-        <button type="button" className="btn" onClick=${add}><${Icon} n="plus" size=${14} />카테고리 추가</button>
+        <button type="button" className="btn" onClick=${add}><${Icon} n="plus" size=${14} />추가</button>
         <button type="button" className="btn btn-primary" onClick=${finish}>완료</button>
       </div>
     <//>`;
 }
 
-/* ---------- event modal ---------- */
-function EventModal({ ev, onSave, onDelete, onClose }) {
+/* 일정 추가/수정 모달 (기간설정, 반복설정, 1분단위 도르래 시간피커 적용) */
+function EventModal({ ev, favorites, onSave, onDelete, onClose }) {
   const [d, setD] = useState(ev);
   const [err, setErr] = useState('');
   const [cf, setCf] = useState(false);
-  const last = useRef(ev.start != null ? { s: ev.start, e: ev.end } : { s: 540, e: 600 });
   const timed = d.start != null;
   const set = p => setD(x => ({ ...x, ...p }));
-  const setStart = s => { const e = d.end != null && d.end > s ? d.end : Math.min(1440, s + 60); last.current = { s, e }; set({ start: s, end: e }); };
-  const setEnd = e => { last.current = { s: d.start, e }; set({ end: e }); };
-  const toggle = t => { if (t && !timed) set({ start: last.current.s, end: last.current.e }); if (!t && timed) set({ start: null, end: null }); };
+
+  const applyFav = f => {
+    set({ title: f.title, start: f.start, end: f.end, cat: f.cat });
+  };
+
   const submit = e => {
     e.preventDefault();
     const title = d.title.trim();
     if (!title) { setErr('제목을 입력해 주세요.'); return; }
     onSave({ ...d, title });
   };
+
   return html`
     <${Modal} title=${ev.id ? '일정 수정' : '새 일정'} onClose=${onClose}>
       <form onSubmit=${submit} className="flex flex-col gap-4">
+        ${favorites.length > 0 && html`
+          <div>
+            <label className="mb-1 block text-xs text-muted">즐겨찾기에서 가져오기</label>
+            <div className="flex flex-wrap gap-1.5">
+              ${favorites.map(f => html`<button key=${f.id} type="button" className="btn btn-soft text-xs py-1 px-2" onClick=${() => applyFav(f)}>${f.title}</button>`)}
+            </div>
+          </div>
+        `}
         <div>
           <input autoFocus className="field" placeholder="무엇을 할까요?" aria-label="제목" value=${d.title} onChange=${e => { set({ title: e.target.value }); setErr(''); }} />
           ${err && html`<p className="mt-1 text-xs text-danger">${err}</p>`}
         </div>
-        <div>
-          <label className="mb-1 block text-xs text-muted" htmlFor="ev-date">날짜</label>
-          <input id="ev-date" type="date" className="field" value=${d.date} onChange=${e => e.target.value && set({ date: e.target.value })} />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-xs text-muted" htmlFor="ev-date">시작일</label>
+            <input id="ev-date" type="date" className="field" value=${d.date} onChange=${e => e.target.value && set({ date: e.target.value })} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted" htmlFor="ev-enddate">종료일 (기간 설정)</label>
+            <input id="ev-enddate" type="date" className="field" value=${d.endDate || ''} onChange=${e => set({ endDate: e.target.value })} placeholder="선택사항" />
+          </div>
         </div>
         <div>
-          <div className="mb-1 text-xs text-muted">시간</div>
+          <div className="mb-1 text-xs text-muted">시간 설정 (1분 단위 정밀 조절)</div>
           <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl bg-card2 p-1">
-            <button type="button" aria-pressed=${timed} onClick=${() => toggle(true)} className=${'rounded-lg py-1.5 text-sm ' + (timed ? 'bg-card font-medium shadow-soft' : 'text-muted')}>시간 설정</button>
-            <button type="button" aria-pressed=${!timed} onClick=${() => toggle(false)} className=${'rounded-lg py-1.5 text-sm ' + (!timed ? 'bg-card font-medium shadow-soft' : 'text-muted')}>시간 미설정</button>
+            <button type="button" onClick=${() => set({ start: 540, end: 600 })} className=${'rounded-lg py-1.5 text-sm ' + (timed ? 'bg-card font-medium shadow-soft' : 'text-muted')}>시간 지정</button>
+            <button type="button" onClick=${() => set({ start: null, end: null })} className=${'rounded-lg py-1.5 text-sm ' + (!timed ? 'bg-card font-medium shadow-soft' : 'text-muted')}>시간 미설정</button>
           </div>
-          ${timed
-            ? html`<div className="flex items-center gap-2"><${TimeSelect} value=${d.start} max=${1425} onChange=${setStart} label="시작 시간" /><span className="text-muted">~</span><${TimeSelect} value=${d.end} min=${d.start + 15} onChange=${setEnd} label="종료 시간" /></div>`
-            : html`<p className="text-xs text-muted">시간 없이 저장하면 시간표 위 대기 영역에 놓여요. 원하는 시간대로 끌어다 놓으면 시간이 정해져요.</p>`}
+          ${timed && html`
+            <div className="flex flex-col gap-2">
+              <div>
+                <span className="text-xs text-muted mb-1 block">시작 시간</span>
+                <${TimeSelectComp} value=${d.start} onChange=${s => set({ start: s, end: Math.max(s + 15, d.end) })} />
+              </div>
+              <div>
+                <span className="text-xs text-muted mb-1 block">종료 시간</span>
+                <${TimeSelectComp} value=${d.end} onChange=${en => set({ end: Math.max((d.start || 0) + 1, en) })} />
+              </div>
+            </div>
+          `}
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted">반복 설정</label>
+          <select value=${d.repeat || 'none'} onChange=${e => set({ repeat: e.target.value })} className="field">
+            <option value="none">반복 없음</option>
+            <option value="daily">매일 반복</option>
+            <option value="weekly">매주 반복</option>
+          </select>
         </div>
         <div><div className="mb-2 text-xs text-muted">카테고리</div><${CatPick} value=${d.cat} onChange=${c => set({ cat: c })} /></div>
         <div className="flex items-center justify-between gap-2 pt-1">
@@ -401,78 +439,35 @@ function EventModal({ ev, onSave, onDelete, onClose }) {
     <//>`;
 }
 
-/* ---------- preset modal ---------- */
-function PresetModal({ preset, dayEvents, selLabel, onSave, onDelete, onClose }) {
-  const [d, setD] = useState(preset);
-  const [err, setErr] = useState('');
-  const [cf, setCf] = useState(false);
-  const { list, map } = useContext(CatCtx);
-  const setItem = (id, p) => setD(x => ({ ...x, items: x.items.map(i => i.id === id ? { ...i, ...p } : i) }));
-  const setStart = (i, s) => setItem(i.id, { start: s, end: i.end > s ? i.end : Math.min(1440, s + 60) });
-  const addRow = () => setD(x => {
-    const l = x.items[x.items.length - 1];
-    const s = l ? Math.min(1380, l.end) : 540;
-    return { ...x, items: [...x.items, { id: uid(), title: '', start: s, end: Math.min(1440, s + 60), cat: l ? l.cat : (list[0] ? list[0].id : '') }] };
-  });
-  const importDay = () => setD(x => ({
-    ...x,
-    items: [...x.items.filter(i => i.title.trim()), ...dayEvents.map(e => ({ id: uid(), title: e.title, start: e.start, end: e.end, cat: e.cat }))]
-  }));
-  const submit = e => {
-    e.preventDefault();
-    const name = d.name.trim();
-    const items = d.items.filter(i => i.title.trim()).map(i => ({ ...i, title: i.title.trim() })).sort((a, b) => a.start - b.start);
-    if (!name) { setErr('프리셋 이름을 입력해 주세요.'); return; }
-    if (!items.length) { setErr('일정을 한 개 이상 추가해 주세요.'); return; }
-    onSave({ ...d, name, items });
-  };
+function TimeSelectComp({ value, onChange }) {
+  const v = value != null ? value : 540;
+  const h = Math.floor(v / 60);
+  const m = v % 60;
   return html`
-    <${Modal} title=${preset.fresh ? '새 프리셋' : '프리셋 수정'} onClose=${onClose}>
-      <form onSubmit=${submit} className="flex flex-col gap-4">
-        <input autoFocus className="field" aria-label="프리셋 이름" placeholder="예: 월/수 학교 시간표" value=${d.name} onChange=${e => { setD({ ...d, name: e.target.value }); setErr(''); }} />
-        <div className="flex flex-col gap-3">
-          ${d.items.map(i => html`
-            <div key=${i.id} className="rounded-2xl border border-line bg-bg p-2.5">
-              <div className="flex items-center gap-2">
-                <span className="h-6 w-6 flex-none rounded-full" style=${{ background: cvar(map, i.cat) }} />
-                <input className="field" aria-label="일정 제목" placeholder="일정 제목" value=${i.title} onChange=${e => setItem(i.id, { title: e.target.value })} />
-                <button type="button" className="icon-btn" aria-label="행 삭제" onClick=${() => setD(x => ({ ...x, items: x.items.filter(r => r.id !== i.id) }))}><${Icon} n="x" size=${15} /></button>
-              </div>
-              <div className="mt-2 flex items-center gap-2 pl-8">
-                <${TimeSelect} value=${i.start} max=${1425} onChange=${s => setStart(i, s)} label="시작" /><span className="text-muted">~</span><${TimeSelect} value=${i.end} min=${i.start + 15} onChange=${e => setItem(i.id, { end: e })} label="종료" />
-                <select aria-label="카테고리" value=${i.cat} onChange=${e => setItem(i.id, { cat: e.target.value })} className="field">${list.map(c => html`<option key=${c.id} value=${c.id}>${c.name}</option>`)}</select>
-              </div>
-            </div>`)}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn" onClick=${addRow}><${Icon} n="plus" size=${14} />일정 추가</button>
-          <button type="button" className="btn btn-soft" disabled=${!dayEvents.length} onClick=${importDay} style=${{ opacity: dayEvents.length ? 1 : .5 }}><${Icon} n="cal" size=${14} />${selLabel} 일정 불러오기</button>
-        </div>
-        ${err && html`<p className="text-xs text-danger">${err}</p>`}
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <div>${!preset.fresh && (cf
-            ? html`<span className="flex gap-2"><button type="button" className="btn btn-danger" onClick=${() => onDelete(preset.id)}>정말 삭제</button><button type="button" className="btn" onClick=${() => setCf(false)}>취소</button></span>`
-            : html`<button type="button" className="btn btn-danger" onClick=${() => setCf(true)}><${Icon} n="trash" size=${14} />삭제</button>`)}</div>
-          ${!cf && html`<div className="flex gap-2"><button type="button" className="btn" onClick=${onClose}>취소</button><button type="submit" className="btn btn-primary">저장</button></div>`}
-        </div>
-      </form>
-    <//>`;
+    <div className="flex items-center gap-2">
+      <select value=${h} onChange=${e => onChange(Number(e.target.value) * 60 + m)} className="field">
+        ${Array.from({length: 24}, (_, i) => html`<option key=${i} value=${i}>${pad(i)}시</option>`)}
+      </select>
+      <select value=${m} onChange=${e => onChange(h * 60 + Number(e.target.value))} className="field">
+        ${Array.from({length: 60}, (_, i) => html`<option key=${i} value=${i}>${pad(i)}분</option>`)}
+      </select>
+    </div>
+  `;
 }
 
-/* ---------- left column ---------- */
 function PhotoWidget({ photo, onPick, onReset, caption, onCaption, today }) {
   const inp = useRef(null);
   const d = parse(today);
   return html`
     <section className="order-1 rounded-[28px] border border-line bg-card p-2 shadow-soft">
       <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] bg-card2">
-        <img src=${photo || DEFAULT_PHOTO} alt="내가 고른 무드 사진" className="h-full w-full object-cover" draggable="false" />
+        <img src=${photo || DEFAULT_PHOTO} alt="무드 사진" className="h-full w-full object-cover" draggable="false" />
         <div className="glass absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-medium tabular-nums">${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${DOW[d.getDay()]}</div>
         <div className="absolute bottom-3 right-3 flex gap-2">
           ${photo && html`<button type="button" className="glass glass-btn" onClick=${onReset}><${Icon} n="undo" size=${13} />기본</button>`}
           <button type="button" className="glass glass-btn" onClick=${() => inp.current && inp.current.click()}><${Icon} n="image" size=${13} />사진 변경</button>
         </div>
-        <input ref=${inp} type="file" accept="image/*" className="hidden" aria-label="사진 업로드" onChange=${e => { const f = e.target.files && e.target.files[0]; if (f) onPick(f); e.target.value = ''; }} />
+        <input ref=${inp} type="file" accept="image/*" className="hidden" aria-label="업로드" onChange=${e => { const f = e.target.files && e.target.files[0]; if (f) onPick(f); e.target.value = ''; }} />
       </div>
       <div className="px-3 pb-2 pt-3">
         <div className="text-[10px] uppercase tracking-[.18em] text-muted">Today's mood</div>
@@ -494,7 +489,7 @@ function MiniCal({ sel, onSelect, eventDates, today }) {
     <section className="order-4 hidden rounded-[28px] border border-line bg-card p-4 shadow-soft xl:block">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-display text-base">${m.getFullYear()}년 ${m.getMonth() + 1}월</span>
-        <span className="flex"><button type="button" className="icon-btn" aria-label="이전 달" onClick=${() => setM(addMonths(m, -1))}><${Icon} n="left" /></button><button type="button" className="icon-btn" aria-label="다음 달" onClick=${() => setM(addMonths(m, 1))}><${Icon} n="right" /></button></span>
+        <span className="flex"><button type="button" className="icon-btn" aria-label="이전" onClick=${() => setM(addMonths(m, -1))}><${Icon} n="left" /></button><button type="button" className="icon-btn" aria-label="다음" onClick=${() => setM(addMonths(m, 1))}><${Icon} n="right" /></button></span>
       </div>
       <div className="grid grid-cols-7 text-center text-[11px] text-muted">${DOW.map((w, i) => html`<span key=${w} className=${'py-1 ' + (i === 0 ? 'text-danger' : '')}>${w}</span>`)}</div>
       <div className="grid grid-cols-7 gap-y-0.5">${cells.map(c => {
@@ -508,29 +503,47 @@ function MiniCal({ sel, onSelect, eventDates, today }) {
     </section>`;
 }
 
-function PresetsPanel({ presets, sel, onApply, onNew, onEdit }) {
+/* 자주 쓰는 일정/투두 즐겨찾기 관리 패널 (프리셋 대신 대체) */
+function FavoritesPanel({ favorites, setFavorites }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const { list } = useContext(CatCtx);
+  const [cat, setCat] = useState(list[0]?.id || 'cat-study');
+
+  const add = e => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setFavorites(f => [...f, { id: uid(), title: title.trim(), start: 540, end: 600, cat }]);
+    setTitle('');
+  };
+
   return html`
-    <section className="order-4 rounded-[28px] border border-line bg-card p-4 shadow-soft xl:order-5">
-      <div className="mb-1 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 font-display text-base"><span className="text-accent"><${Icon} n="star" size=${16} /></span>시간표 프리셋</h2>
-        <button type="button" className="icon-btn" onClick=${onNew} aria-label="새 프리셋"><${Icon} n="plus" /></button>
+    <section className="order-4 rounded-[28px] border border-line bg-card p-4 shadow-soft">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 font-display text-base"><span className="text-accent"><${Icon} n="star" size=${16} /></span>즐겨찾기 템플릿</h2>
+        <button type="button" className="icon-btn" onClick=${() => setOpen(!open)}><${Icon} n=${open ? 'x' : 'plus'} /></button>
       </div>
-      <p className="mb-3 text-xs text-muted">누르면 <b className="font-medium text-ink">${label(sel)}</b> 시간표에 한 번에 추가돼요.</p>
-      <ul className="flex flex-col gap-2">
-        ${presets.length === 0 && html`<li className="rounded-2xl border border-dashed border-line p-3 text-xs text-muted">저장된 프리셋이 없어요. + 를 눌러 만들어 보세요.</li>`}
-        ${presets.map(p => {
-          const s = Math.min(...p.items.map(i => i.start)), e = Math.max(...p.items.map(i => i.end));
-          return html`<li key=${p.id} className="flex items-center gap-1 rounded-2xl border border-line bg-bg p-1.5 pl-3">
-            <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">${p.name}</div><div className="text-[11px] tabular-nums text-muted">${p.items.length}개 · ${mm(s)}–${mm(e)}</div></div>
-            <button type="button" className="icon-btn" aria-label=${p.name + ' 수정'} onClick=${() => onEdit(p)}><${Icon} n="pencil" size=${14} /></button>
-            <button type="button" className="btn btn-soft" onClick=${() => onApply(p)}>적용<${Icon} n="arrow" size=${13} /></button>
-          </li>`;
-        })}
-      </ul>
-    </section>`;
+      <p className="mb-3 text-xs text-muted">자주 쓰는 일정을 등록해두고 빠르게 꺼내 쓰세요.</p>
+      ${open && html`
+        <form onSubmit=${add} className="mb-3 flex flex-col gap-2 p-2 bg-bg rounded-xl border border-line">
+          <input className="field" placeholder="템플릿 이름 (예: 집중 공부)" value=${title} onChange=${e => setTitle(e.target.value)} />
+          <${CatPick} value=${cat} onChange=${setCat} />
+          <button type="submit" className="btn btn-primary self-end text-xs">추가</button>
+        </form>
+      `}
+      <div className="flex flex-wrap gap-1.5">
+        ${favorites.length === 0 && html`<span className="text-xs text-muted">등록된 즐겨찾기가 없어요.</span>`}
+        ${favorites.map(f => html`
+          <div key=${f.id} className="inline-flex items-center gap-1 rounded-full border border-line bg-bg px-3 py-1 text-xs">
+            <span>${f.title}</span>
+            <button type="button" className="text-muted hover:text-danger" onClick=${() => setFavorites(favorites.filter(x => x.id !== f.id))}><${Icon} n="x" size=${12} /></button>
+          </div>
+        `)}
+      </div>
+    </section>
+  `;
 }
 
-/* ---------- calendar views ---------- */
 function Chip({ e, onOpen, drag, onEnd }) {
   const { map } = useContext(CatCtx);
   return html`<button type="button" draggable="true" className="chip" style=${{ '--c': cvar(map, e.cat) }}
@@ -540,6 +553,7 @@ function Chip({ e, onOpen, drag, onEnd }) {
     <span className="truncate">${e.title}</span></button>`;
 }
 
+/* 24시간 타임테이블 유지 */
 function TimeGrid({ days, byDate, today, sel, setSel, openEv, openNew, drag, onDropTimed, onDropUntimed, patchEv, wide }) {
   const scroller = useRef(null);
   const { map } = useContext(CatCtx);
@@ -554,20 +568,21 @@ function TimeGrid({ days, byDate, today, sel, setSel, openEv, openNew, drag, onD
   const calcStart = (e) => {
     const dr = drag.current; if (!dr) return null;
     const r = e.currentTarget.getBoundingClientRect();
-    return Math.max(0, Math.min(1440 - dr.dur, snap((e.clientY - r.top) / HH * 60 - dr.offset)));
+    return Math.max(0, Math.min(1440 - dr.dur, Math.round(((e.clientY - r.top) / HH * 60 - dr.offset) / 5) * 5));
   };
   const startResize = (e, ev) => {
     e.stopPropagation(); e.preventDefault();
     resizing.current = true;
     const y0 = e.clientY, end0 = ev.end; let lastEnd = ev.end;
     const move = m => {
-      const ne = Math.max(ev.start + 15, Math.min(1440, end0 + snap((m.clientY - y0) / HH * 60)));
+      const ne = Math.max(ev.start + 15, Math.min(1440, end0 + Math.round((m.clientY - y0) / HH * 60)));
       if (ne !== lastEnd) { lastEnd = ne; patchEv(ev.id, { end: ne }); }
     };
     const up = () => { resizing.current = false; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
   const nowMin = now.getHours() * 60 + now.getMinutes();
+
   return html`
     <div className="overflow-x-auto"><div style=${{ minWidth: wide ? 620 : 0 }}>
       <div ref=${scroller} className="overflow-y-auto rounded-2xl border border-line" style=${{ maxHeight: 'min(70vh,660px)' }}>
@@ -592,7 +607,7 @@ function TimeGrid({ days, byDate, today, sel, setSel, openEv, openNew, drag, onD
                 onDragLeave=${e => { if (!e.currentTarget.contains(e.relatedTarget)) setBarHover(null); }}
                 onDrop=${e => { e.preventDefault(); onDropUntimed(d); endDrag(); }}>
                 ${list.map(e => html`<${Chip} key=${e.id} e=${e} onOpen=${openEv} drag=${drag} onEnd=${endDrag} />`)}
-                <button type="button" className="icon-btn" style=${{ width: 24, height: 24 }} aria-label=${label(d) + ' 대기 일정 추가'} onClick=${() => openNew({ date: d, start: null })}><${Icon} n="plus" size=${14} /></button>
+                <button type="button" className="icon-btn" style=${{ width: 24, height: 24 }} onClick=${() => openNew({ date: d, start: null })}><${Icon} n="plus" size=${14} /></button>
               </div>`;
             })}
           </div>
@@ -625,7 +640,7 @@ function TimeGrid({ days, byDate, today, sel, setSel, openEv, openNew, drag, onD
                   onDragStart=${ev => {
                     if (resizing.current) { ev.preventDefault(); return; }
                     const r = ev.currentTarget.getBoundingClientRect(), dur = e.end - e.start;
-                    drag.current = { id: e.id, offset: Math.max(0, Math.min(dur - 15, snap((ev.clientY - r.top) / HH * 60))), dur };
+                    drag.current = { id: e.id, offset: Math.max(0, Math.min(dur - 15, (ev.clientY - r.top) / HH * 60)), dur };
                     ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move';
                   }}
                   onDragEnd=${endDrag}>
@@ -652,6 +667,7 @@ function MonthView({ sel, setSel, setView, byDate, today, openEv, openNew, drag,
   const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
   const cells = Array.from({ length: Math.ceil((lead + dim) / 7) * 7 }, (_, i) => addDays(first, i - lead));
   const endDrag = () => { drag.current = null; setOver(null); };
+
   return html`
     <div className="overflow-hidden rounded-2xl border border-line">
       <div className="grid grid-cols-7 bg-card2 text-center text-[11px]">${DOW.map((w, i) => html`<div key=${w} className=${'py-2 ' + (i === 0 ? 'text-danger' : 'text-muted')}>${w}</div>`)}</div>
@@ -666,51 +682,61 @@ function MonthView({ sel, setSel, setView, byDate, today, openEv, openNew, drag,
             onDragLeave=${e => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(null); }}
             onDrop=${e => { e.preventDefault(); onDropDate(k); endDrag(); }}>
             <div className="mb-1 flex items-center justify-between">
-              <button type="button" aria-label=${label(k) + ' 일간 보기'} onClick=${e => { e.stopPropagation(); setSel(k); setView('day'); }}
+              <button type="button" onClick=${e => { e.stopPropagation(); setSel(k); setView('day'); }}
                 className=${'grid h-6 min-w-6 place-items-center rounded-full px-1 text-xs tabular-nums ' + (isT ? 'bg-accent font-medium text-onaccent' : inM ? '' : 'text-muted')}>${c.getDate()}</button>
-              <button type="button" aria-label=${label(k) + ' 일정 추가'} className="icon-btn hidden opacity-0 group-hover:opacity-100 focus:opacity-100 sm:inline-grid" style=${{ width: 22, height: 22 }} onClick=${e => { e.stopPropagation(); openNew({ date: k, start: null }); }}><${Icon} n="plus" size=${13} /></button>
+              <button type="button" className="icon-btn hidden opacity-0 group-hover:opacity-100 focus:opacity-100 sm:inline-grid" style=${{ width: 22, height: 22 }} onClick=${e => { e.stopPropagation(); openNew({ date: k, start: null }); }}><${Icon} n="plus" size=${13} /></button>
             </div>
             <div className="hidden flex-col gap-1 sm:flex">
               ${list.slice(0, 3).map(e => html`<button key=${e.id} type="button" draggable="true" className=${'mchip' + (e.start == null ? ' untimed' : '')} style=${{ '--c': cvar(map, e.cat) }}
                 onClick=${ev => { ev.stopPropagation(); openEv(e); }}
                 onDragStart=${ev => { drag.current = { id: e.id, offset: 0, dur: 60 }; ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move'; }}
                 onDragEnd=${endDrag}>
-                ${e.start != null && html`<span className="tabular-nums text-muted">${mm(e.start)}</span>`}<span className="truncate">${e.title}</span></button>`)}
-              ${list.length > 3 && html`<span className="pl-1 text-[11px] text-muted">+${list.length - 3}개 더</span>`}
+                ${e.start != null && html`<span className="tabular-nums text-muted">${mm(e.start)}</span>`}<span className="truncate">${e.title} ${e.endDate ? '(~'+e.endDate.slice(5)+')' : ''}</span></button>`)}
             </div>
-            <div className="flex flex-wrap gap-0.5 sm:hidden">${list.slice(0, 6).map(e => html`<span key=${e.id} className="h-1.5 w-1.5 rounded-full" style=${{ background: cvar(map, e.cat) }} />`)}</div>
           </div>`;
         })}
       </div>
     </div>`;
 }
 
-/* ---------- right column ---------- */
 function Check({ on, onClick, text, now }) {
   return html`<button type="button" onClick=${onClick} aria-pressed=${on} aria-label=${text + (on ? ' 완료 취소' : ' 완료')} className=${'check ' + (on ? 'on' : '') + (now ? ' now' : '')}>${on && html`<${Icon} n="check" size=${12} sw=${3} />`}</button>`;
 }
 
-function Todos({ date, todos, setTodos, onSchedule }) {
+function Todos({ date, todos, setTodos, favorites }) {
   const { list: cats, map } = useContext(CatCtx);
-  const [cat, setCat] = useState(null);
-  const cur = map[cat] ? cat : (cats[0] ? cats[0].id : '');
+  const [cat, setCat] = useState(cats[0]?.id || 'cat-study');
   const [t, setT] = useState('');
+  const [repeat, setRepeat] = useState('none');
   const list = todos.filter(x => x.date === date);
   const done = list.filter(x => x.done).length;
-  const add = e => { e.preventDefault(); const v = t.trim(); if (!v) return; setTodos(a => [...a, { id: uid(), date, text: v, done: false, cat: cur }]); setT(''); };
+
+  const add = e => { e.preventDefault(); const v = t.trim(); if (!v) return; setTodos(a => [...a, { id: uid(), date, text: v, done: false, cat, repeat }]); setT(''); };
+
   return html`
     <div>
       <div className="mb-3 flex items-baseline justify-between"><h3 className="font-display text-base">${label(date)} 할 일</h3><span className="text-xs tabular-nums text-muted">${done}/${list.length} 완료</span></div>
-      <form onSubmit=${add} className="mb-3 flex flex-col gap-2"><div className="flex gap-2"><input className="field" aria-label="할 일 추가" placeholder="가볍게 한 줄 추가" value=${t} onChange=${e => setT(e.target.value)} /><button type="submit" className="btn btn-primary" aria-label="추가"><${Icon} n="plus" size=${16} /></button></div><${CatPick} value=${cur} onChange=${setCat} /></form>
+      <form onSubmit=${add} className="mb-3 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <input className="field" placeholder="할 일 입력" value=${t} onChange=${e => setT(e.target.value)} />
+          <button type="submit" className="btn btn-primary" aria-label="추가"><${Icon} n="plus" size=${16} /></button>
+        </div>
+        <${CatPick} value=${cat} onChange=${setCat} />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted">반복:</span>
+          <select value=${repeat} onChange=${e => setRepeat(e.target.value)} className="field text-xs py-1">
+            <option value="none">없음</option>
+            <option value="daily">매일</option>
+            <option value="weekly">매주</option>
+          </select>
+        </div>
+      </form>
       <ul className="flex flex-col gap-1">
-        ${list.length === 0 && html`<li className="rounded-2xl border border-dashed border-line p-3 text-xs text-muted">이 날의 할 일이 아직 없어요.</li>`}
+        ${list.length === 0 && html`<li className="rounded-2xl border border-dashed border-line p-3 text-xs text-muted">할 일이 없어요.</li>`}
         ${list.map(x => html`<li key=${x.id} className="flex items-center gap-2.5 rounded-xl px-1 py-1.5 hover:bg-card2">
           <${Check} on=${x.done} text=${x.text} onClick=${() => setTodos(a => a.map(y => y.id === x.id ? { ...y, done: !y.done } : y))} />
-          <span className=${'flex-1 text-sm ' + (x.done ? 'text-muted line-through' : '')}>${x.text}</span>
-          <button type="button" title="카테고리 바꾸기" aria-label=${x.text + ' 카테고리: ' + ((map[x.cat] || {}).name || '없음')} className="flex-none rounded-full px-2 py-0.5 text-[11px]" style=${{ background: 'color-mix(in srgb,' + cvar(map, x.cat) + ' 24%,var(--card))' }}
-            onClick=${() => { const i = cats.findIndex(c => c.id === x.cat); const n = cats[(i + 1) % cats.length]; if (n) setTodos(a => a.map(y => y.id === x.id ? { ...y, cat: n.id } : y)); }}>${(map[x.cat] || {}).name || '없음'}</button>
-          <button type="button" className="icon-btn" style=${{ width: 26, height: 26 }} title="시간표 대기 영역에 넣기" aria-label=${x.text + ' 시간표에 넣기'} onClick=${() => onSchedule(x)}><${Icon} n="clock" size=${14} /></button>
-          <button type="button" className="icon-btn" style=${{ width: 26, height: 26 }} aria-label=${x.text + ' 삭제'} onClick=${() => setTodos(a => a.filter(y => y.id !== x.id))}><${Icon} n="x" size=${14} /></button>
+          <span className=${'flex-1 text-sm ' + (x.done ? 'text-muted line-through' : '')}>${x.text} ${x.repeat !== 'none' ? '(' + (x.repeat === 'daily' ? '매일' : '매주') + ')' : ''}</span>
+          <button type="button" className="icon-btn" style=${{ width: 26, height: 26 }} onClick=${() => setTodos(a => a.filter(y => y.id !== x.id))}><${Icon} n="x" size=${14} /></button>
         </li>`)}
       </ul>
     </div>`;
@@ -722,13 +748,11 @@ function Journal({ date, text, onChange }) {
   const change = v => { onChange(v); setFlash(true); clearTimeout(tm.current); tm.current = setTimeout(() => setFlash(false), 1200); };
   return html`
     <div>
-      <div className="mb-3 flex items-baseline justify-between"><h3 className="font-display text-base">${label(date)}의 기록</h3><span className="text-xs text-muted" aria-live="polite">${flash ? '저장됨' : '자동 저장'}</span></div>
-      <textarea className="field lined" rows="10" aria-label="오늘의 일기" placeholder="오늘 하루는 어땠나요? 짧게라도 남겨보세요." value=${text} onChange=${e => change(e.target.value)} style=${{ resize: 'vertical', padding: '4px 14px' }} />
-      <div className="mt-2 text-right text-xs tabular-nums text-muted">${text.length}자</div>
+      <div className="mb-3 flex items-baseline justify-between"><h3 className="font-display text-base">${label(date)}의 기록</h3><span className="text-xs text-muted">${flash ? '저장됨' : '자동 저장'}</span></div>
+      <textarea className="field lined" rows="10" placeholder="오늘 하루는 어땠나요?" value=${text} onChange=${e => change(e.target.value)} style=${{ resize: 'vertical', padding: '4px 14px' }} />
     </div>`;
 }
 
-/* ---------- header: clock, d-day, sync ---------- */
 const diffDays = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
 const ddText = n => n === 0 ? 'D-Day' : n > 0 ? 'D-' + n : 'D+' + (-n);
 
@@ -739,7 +763,7 @@ function Clock() {
   return html`
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
       <h1 className="font-display text-xl leading-tight sm:text-2xl">${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일 ${DOW[now.getDay()]}요일</h1>
-      <span className="text-lg tabular-nums text-accent-strong sm:text-xl" aria-label="현재 시각">${ap} ${h12}:${pad(now.getMinutes())}</span>
+      <span className="text-lg tabular-nums text-accent-strong sm:text-xl">${ap} ${h12}:${pad(now.getMinutes())}</span>
     </div>`;
 }
 
@@ -747,7 +771,7 @@ function DdayBar({ items, today, onEdit }) {
   const up = items.map(d => ({ ...d, n: diffDays(today, d.date) })).filter(d => d.n >= 0).sort((a, b) => a.n - b.n).slice(0, 3);
   return html`
     <div className="flex flex-wrap items-center gap-2">
-      ${up.map(d => html`<button key=${d.id} type="button" onClick=${onEdit} title=${d.date} className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-sm shadow-soft">
+      ${up.map(d => html`<button key=${d.id} type="button" onClick=${onEdit} className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-sm shadow-soft">
         <span className="max-w-[9rem] truncate">${d.title}</span><b className="font-medium tabular-nums text-accent-strong">${ddText(d.n)}</b></button>`)}
       <button type="button" className="btn" onClick=${onEdit}><${Icon} n="plus" size=${14} />D-day</button>
     </div>`;
@@ -759,163 +783,86 @@ function DdayModal({ items, setItems, today, onClose }) {
   const finish = () => { setItems(items.filter(x => x.title.trim())); onClose(); };
   return html`
     <${Modal} title="D-day 관리" onClose=${finish}>
-      <p className="mb-3 text-xs text-muted">시험, 제출일, 여행처럼 기다리는 날을 등록하면 상단에 남은 날짜가 보여요. 가까운 순서로 최대 3개까지 표시해요.</p>
       <div className="flex flex-col gap-3">
-        ${items.length === 0 && html`<p className="rounded-2xl border border-dashed border-line p-3 text-xs text-muted">아직 등록한 D-day가 없어요.</p>`}
         ${items.map(x => {
           const n = diffDays(today, x.date);
           return html`<div key=${x.id} className="rounded-2xl border border-line bg-bg p-3">
             <div className="flex items-center gap-2">
-              <input className="field" aria-label="D-day 이름" placeholder="이름 (예: 기말고사)" value=${x.title} onChange=${e => upd(x.id, { title: e.target.value })} />
-              <button type="button" className="icon-btn" aria-label=${(x.title || 'D-day') + ' 삭제'} onClick=${() => setItems(items.filter(y => y.id !== x.id))}><${Icon} n="trash" size=${15} /></button>
+              <input className="field" placeholder="이름" value=${x.title} onChange=${e => upd(x.id, { title: e.target.value })} />
+              <button type="button" className="icon-btn" onClick=${() => setItems(items.filter(y => y.id !== x.id))}><${Icon} n="trash" size=${15} /></button>
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <input type="date" className="field" aria-label="날짜" value=${x.date} onChange=${e => e.target.value && upd(x.id, { date: e.target.value })} />
-              <span className=${'w-16 flex-none text-right font-medium tabular-nums ' + (n < 0 ? 'text-muted' : 'text-accent-strong')}>${ddText(n)}</span>
+              <input type="date" className="field" value=${x.date} onChange=${e => e.target.value && upd(x.id, { date: e.target.value })} />
+              <span className="w-16 flex-none text-right font-medium tabular-nums text-accent-strong">${ddText(n)}</span>
             </div>
           </div>`;
         })}
       </div>
       <div className="mt-4 flex items-center justify-between">
-        <button type="button" className="btn" onClick=${add}><${Icon} n="plus" size=${14} />D-day 추가</button>
+        <button type="button" className="btn" onClick=${add}><${Icon} n="plus" size=${14} />추가</button>
         <button type="button" className="btn btn-primary" onClick=${finish}>완료</button>
       </div>
     <//>`;
 }
 
-const SYNC_TEXT = {
-  connecting: ['연결 중…', '계정 연결을 확인하고 있어요.'],
-  saving: ['저장 중…', '변경 내용을 계정에 저장하고 있어요.'],
-  synced: ['동기화됨', '변경 내용이 계정에 저장돼요. 같은 계정으로 열면 다른 기기에서도 이어져요.'],
-  local: ['이 기기에만 저장', 'claude.ai에 로그인한 상태로 이 페이지를 열면 기기 간 동기화가 켜져요.'],
-  offline: ['연결 지연 · 이 기기에 저장', '계정에 아직 연결하지 못했어요. 입력한 내용은 이 기기에 저장돼요.'],
-  error: ['동기화 실패', '계정에 저장하지 못했어요. 이 기기에는 저장돼 있고, 다음 변경 때 다시 시도해요.']
-};
-function SyncChip({ sync, me }) {
-  const t = SYNC_TEXT[sync] || SYNC_TEXT.local;
-  const dot = sync === 'synced' ? 'var(--accent)' : (sync === 'saving' || sync === 'connecting') ? 'var(--e1)' : sync === 'error' ? 'var(--danger)' : 'var(--muted)';
-  return html`
-    <div className="flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-sm shadow-soft" title=${t[1]} role="status">
-      ${me && html`<img src=${me.avatar} alt="" className="h-6 w-6 rounded-full" />`}
-      ${me && me.name && html`<span className="max-w-[8rem] truncate">${me.name}</span>`}
-      <span className="inline-flex items-center gap-1.5 text-muted"><span className="h-2 w-2 rounded-full" style=${{ background: dot }} />${t[0]}</span>
-    </div>`;
-}
-
-/* ---------- app ---------- */
+/* 메인 앱 컴포넌트 */
 function App() {
   const [data, setData] = useState(() => load() || migrate(seed()));
   const [photo, setPhoto] = useState(() => { try { return localStorage.getItem(PKEY); } catch (e) { return null; } });
   const [sel, setSel] = useState(() => fmt(new Date()));
   const [view, setView] = useState('week');
   const [modal, setModal] = useState(null);
-  const [pmodal, setPmodal] = useState(null);
   const [tab, setTab] = useState('todo');
   const [toast, setToast] = useState(null);
   const [qa, setQa] = useState('');
   const [catModal, setCatModal] = useState(false);
   const [ddModal, setDdModal] = useState(false);
-  const [sync, setSync] = useState('connecting');
-  const [me, setMe] = useState(null);
-  const [, setTick] = useState(0);
-  const docRef = useRef(null), photoDocRef = useRef(null), ready = useRef(false), firstRun = useRef(true);
-  const lastSynced = useRef(null), pushT = useRef(null), inflight = useRef(false);
-  const localStamp = useRef(readStamp());
-  const dataRef = useRef(null), photoRef = useRef(null);
+
   const drag = useRef(null);
   const toastT = useRef(null);
   const today = fmt(new Date());
 
-  dataRef.current = data; photoRef.current = photo;
-
-  /* ---- account sync: one private document per signed-in person ---- */
-  const stampNow = () => { localStamp.current = Date.now(); try { localStorage.setItem(STAMP, String(localStamp.current)); } catch (e) {} };
-  const pushNow = async () => {
-    if (!docRef.current) return;
-    if (inflight.current) { clearTimeout(pushT.current); pushT.current = setTimeout(pushNow, 500); return; }
-    inflight.current = true;
-    try {
-      if (!localStamp.current) stampNow();
-      await docRef.current.set({ ...JSON.parse(JSON.stringify(dataRef.current)), updatedAt: localStamp.current });
-      setSync('synced');
-    } catch (e) { setSync('error'); }
-    inflight.current = false;
-  };
-  const schedulePush = () => { setSync('saving'); clearTimeout(pushT.current); pushT.current = setTimeout(pushNow, 900); };
-
-  useEffect(() => {
-    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
-    if (firstRun.current) { firstRun.current = false; lastSynced.current = data; return; }
-    if (data === lastSynced.current) return;
-    lastSynced.current = data;
-    stampNow();
-    if (ready.current) schedulePush();
-  }, [data]);
-
-  useEffect(() => {
-    let dead = false; const unsubs = [];
-    const timer = setTimeout(() => { if (!ready.current) setSync(s => s === 'connecting' ? 'offline' : s); }, 10000);
-    const tick = setInterval(() => setTick(x => x + 1), 60000);
-    const applyRemote = r => {
-      const { updatedAt, ...rest } = r;
-      const d = migrate({ events: [], presets: [], todos: [], journal: {}, caption: '', ddays: [], ...rest });
-      lastSynced.current = d; localStamp.current = updatedAt;
-      try { localStorage.setItem(STAMP, String(updatedAt)); } catch (e) {}
-      setData(d);
-    };
-    (async () => {
-      try {
-        const c = window.claude;
-        if (!c || !c.use) { setSync('local'); return; }
-        const [db, user] = await Promise.all([c.use('db'), c.use('user')]);
-        if (!db || !user) { setSync('local'); return; }
-        const [id, mine] = await Promise.all([user.id(), user.me()]);
-        if (!id) { setSync('local'); return; }
-        if (dead) return;
-        setMe({ name: mine.name, avatar: mine.avatarUrl });
-        docRef.current = db.doc('data/users/' + id + '/planner');
-        photoDocRef.current = db.doc('data/users/' + id + '/photo');
-        unsubs.push(docRef.current.onSnapshot(snap => {
-          if (dead || snap.metadata.fromCache) return;
-          const first = !ready.current;
-          if (snap.exists) {
-            const r = snap.data();
-            if (typeof r.updatedAt === 'number' && r.updatedAt > localStamp.current) applyRemote(r);
-            else if (first && localStamp.current > (r.updatedAt || 0)) pushNow();
-          } else if (first) { pushNow(); }
-          ready.current = true;
-          setSync(s => (s === 'connecting' || s === 'offline') ? 'synced' : s);
-        }, () => setSync('error')));
-        unsubs.push(photoDocRef.current.onSnapshot(snap => {
-          if (dead || snap.metadata.fromCache) return;
-          if (snap.exists) {
-            const u = snap.data().url || null;
-            if (u !== photoRef.current) { setPhoto(u); try { if (u) localStorage.setItem(PKEY, u); else localStorage.removeItem(PKEY); } catch (e) {} }
-          } else if (photoRef.current) { photoDocRef.current.set({ url: photoRef.current }).catch(() => {}); }
-        }, () => {}));
-      } catch (e) { setSync('local'); }
-    })();
-    return () => { dead = true; clearTimeout(timer); clearInterval(tick); unsubs.forEach(u => u && u()); };
-  }, []);
+  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }, [data]);
   const say = m => { setToast(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(null), 2400); };
 
   const setKey = k => fn => setData(d => ({ ...d, [k]: typeof fn === 'function' ? fn(d[k]) : fn }));
   const setTodos = setKey('todos');
+  const setFavorites = setKey('favorites');
   const patchEv = (id, p) => setData(d => ({ ...d, events: d.events.map(e => e.id === id ? { ...e, ...(typeof p === 'function' ? p(e) : p) } : e) }));
 
-  const byDate = useMemo(() => { const m = {}; data.events.forEach(e => { (m[e.date] = m[e.date] || []).push(e); }); return m; }, [data.events]);
+  // 기간(Range) 일정을 고려하여 각 날짜별 이벤트 매핑 확장
+  const byDate = useMemo(() => { 
+    const m = {}; 
+    data.events.forEach(e => { 
+      (m[e.date] = m[e.date] || []).push(e);
+      if (e.endDate && e.endDate > e.date) {
+        let cur = parse(e.date);
+        const endD = parse(e.endDate);
+        while (true) {
+          cur = addDays(cur, 1);
+          if (cur > endD) break;
+          const k = fmt(cur);
+          (m[k] = m[k] || []).push({ ...e, isRangeSub: true });
+        }
+      }
+    }); 
+    return m; 
+  }, [data.events]);
+
   const eventDates = useMemo(() => new Set(data.events.map(e => e.date)), [data.events]);
   const ctx = useMemo(() => ({ list: data.cats, map: Object.fromEntries(data.cats.map(c => [c.id, c])) }), [data.cats]);
   const defCat = data.cats[0] ? data.cats[0].id : '';
+
   const deleteCat = id => setData(d => {
     const rest = d.cats.filter(c => c.id !== id);
     if (!rest.length) return d;
     const fb = rest[0].id, fx = o => o.cat === id ? { ...o, cat: fb } : o;
-    return { ...d, cats: rest, events: d.events.map(fx), todos: d.todos.map(fx), presets: d.presets.map(p => ({ ...p, items: p.items.map(fx) })) };
+    return { ...d, cats: rest, events: d.events.map(fx), todos: d.todos.map(fx) };
   });
 
   const openEv = e => setModal({ key: e.id, ev: e });
-  const openNew = ({ date, start }) => setModal({ key: 'new' + uid(), ev: { id: null, title: '', date, start, end: start == null ? null : Math.min(1440, start + 60), cat: defCat } });
+  const openNew = ({ date, start }) => setModal({ key: 'new' + uid(), ev: { id: null, title: '', date, endDate: '', start, end: start == null ? null : Math.min(1440, start + 60), cat: defCat, repeat: 'none' } });
+  
   const saveEvent = ev => {
     if (ev.id) patchEv(ev.id, ev);
     else setData(d => ({ ...d, events: [...d.events, { ...ev, id: uid() }] }));
@@ -931,40 +878,17 @@ function App() {
   const onDropUntimed = date => { const id = drag.current && drag.current.id; if (id) patchEv(id, { date, start: null, end: null }); };
   const onDropDate = date => { const id = drag.current && drag.current.id; if (id) patchEv(id, { date }); };
 
-  const scheduleTodo = t => {
-    setData(d => ({ ...d, events: [...d.events, { id: uid(), title: t.text, date: t.date, start: null, end: null, cat: t.cat }] }));
-    setSel(t.date);
-    if (view === 'month') setView('day');
-    say('‘' + t.text + '’을 대기 영역에 넣었어요 · 시간표로 끌어다 놓으세요');
-  };
   const quickAdd = e => {
     e.preventDefault(); const v = qa.trim(); if (!v) return;
-    setData(d => ({ ...d, events: [...d.events, { id: uid(), title: v, date: sel, start: null, end: null, cat: defCat }] }));
-    setQa(''); if (view === 'month') say('대기 영역에 추가했어요 · 주/일 보기에서 시간표로 끌어다 놓으세요');
-  };
-
-  const applyPreset = p => {
-    const items = p.items.map(i => ({ id: uid(), title: i.title, date: sel, start: i.start, end: i.end, cat: i.cat }));
-    setData(d => ({ ...d, events: [...d.events, ...items] }));
-    if (view === 'month') setView('day');
-    say('‘' + p.name + '’ ' + items.length + '개 일정을 ' + label(sel) + '에 추가했어요');
-  };
-  const savePreset = p => {
-    const { fresh, ...rest } = p;
-    setData(d => ({ ...d, presets: d.presets.some(x => x.id === rest.id) ? d.presets.map(x => x.id === rest.id ? rest : x) : [...d.presets, rest] }));
-    setPmodal(null); say('프리셋을 저장했어요');
+    setData(d => ({ ...d, events: [...d.events, { id: uid(), title: v, date: sel, endDate: '', start: null, end: null, cat: defCat, repeat: 'none' }] }));
+    setQa(''); if (view === 'month') say('대기 영역에 추가했어요');
   };
 
   const pickPhoto = f => readImage(f, url => {
     setPhoto(url);
     try { localStorage.setItem(PKEY, url); } catch (e) {}
-    if (photoDocRef.current) photoDocRef.current.set({ url }).catch(() => say('사진을 계정에 저장하지 못했어요'));
   });
-  const resetPhoto = () => {
-    setPhoto(null);
-    try { localStorage.removeItem(PKEY); } catch (e) {}
-    if (photoDocRef.current) photoDocRef.current.set({ url: null }).catch(() => {});
-  };
+  const resetPhoto = () => { setPhoto(null); try { localStorage.removeItem(PKEY); } catch (e) {} };
 
   const shift = dir => { const d = parse(sel); setSel(fmt(view === 'month' ? addMonths(d, dir) : addDays(d, view === 'week' ? 7 * dir : dir))); };
   const days = view === 'day' ? [sel] : (() => { const s = addDays(parse(sel), -parse(sel).getDay()); return Array.from({ length: 7 }, (_, i) => fmt(addDays(s, i))); })();
@@ -979,16 +903,13 @@ function App() {
         <${Clock} />
         <${DdayBar} items=${data.ddays || []} today=${today} onEdit=${() => setDdModal(true)} />
       </div>
-      <${SyncChip} sync=${sync} me=${me} />
     </header>
 
     <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[16rem_minmax(0,1fr)_20rem] xl:items-start">
       <aside className="contents xl:flex xl:flex-col xl:gap-5">
         <${PhotoWidget} photo=${photo} onPick=${pickPhoto} onReset=${resetPhoto} caption=${data.caption} onCaption=${v => setData(d => ({ ...d, caption: v }))} today=${today} />
         <${MiniCal} sel=${sel} onSelect=${setSel} eventDates=${eventDates} today=${today} />
-        <${PresetsPanel} presets=${data.presets} sel=${sel} onApply=${applyPreset}
-          onNew=${() => setPmodal({ id: uid(), name: '', fresh: true, items: [{ id: uid(), title: '', start: 540, end: 600, cat: defCat }] })}
-          onEdit=${p => setPmodal({ ...p, items: p.items.map(i => ({ ...i })) })} />
+        <${FavoritesPanel} favorites=${data.favorites || []} setFavorites=${setFavorites} />
         <${CatsPanel} onEdit=${() => setCatModal(true)} />
       </aside>
 
@@ -1000,34 +921,31 @@ function App() {
             <button type="button" className="icon-btn" aria-label="다음" onClick=${() => shift(1)}><${Icon} n="right" size=${18} /></button>
             <h2 className="ml-2 font-display text-lg tabular-nums sm:text-xl">${titleOf(view, sel)}</h2>
           </div>
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-card2 p-1" role="tablist" aria-label="보기 전환">
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-card2 p-1" role="tablist">
             ${[['month', '월'], ['week', '주'], ['day', '일']].map(([k, n]) => html`<button key=${k} type="button" role="tab" aria-selected=${view === k} onClick=${() => setView(k)} className=${'rounded-lg px-4 py-1.5 text-sm ' + (view === k ? 'bg-card font-medium shadow-soft' : 'text-muted hover:text-ink')}>${n}</button>`)}
           </div>
         </div>
         <form onSubmit=${quickAdd} className="mb-3 flex gap-2">
-          <input className="field" aria-label="시간 없이 빠르게 추가" placeholder=${label(sel) + ' · 시간 없이 빠르게 추가 (Enter)'} value=${qa} onChange=${e => setQa(e.target.value)} />
+          <input className="field" placeholder=${label(sel) + ' · 빠르게 일정 추가 (Enter)'} value=${qa} onChange=${e => setQa(e.target.value)} />
           <button type="button" className="btn btn-primary flex-none" onClick=${() => openNew({ date: sel, start: view === 'month' ? null : 540 })}><${Icon} n="plus" size=${15} />일정</button>
         </form>
         ${view === 'month'
           ? html`<${MonthView} sel=${sel} setSel=${setSel} setView=${setView} byDate=${byDate} today=${today} openEv=${openEv} openNew=${openNew} drag=${drag} onDropDate=${onDropDate} />`
           : html`<${TimeGrid} key=${view} days=${days} byDate=${byDate} today=${today} sel=${sel} setSel=${setSel} openEv=${openEv} openNew=${openNew} drag=${drag} onDropTimed=${onDropTimed} onDropUntimed=${onDropUntimed} patchEv=${patchEv} wide=${view === 'week'} />`}
-        <p className="mt-3 text-xs text-muted">${view === 'month' ? '일정을 다른 날짜로 끌어 옮길 수 있어요. 날짜를 두 번 누르면 일간 보기로 이동해요.' : '대기 영역의 칩을 시간표로 끌어다 놓으면 시간이 정해져요. 블록은 아래 모서리를 끌어 길이를 조절해요.'}</p>
       </main>
 
       <section className="order-3 rounded-[28px] border border-line bg-card p-4 shadow-soft">
-        <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-card2 p-1" role="tablist" aria-label="기록 패널">
+        <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-card2 p-1" role="tablist">
           ${[['todo', 'list', '할 일'], ['journal', 'book', '일기']].map(([k, ic, n]) => html`<button key=${k} type="button" role="tab" aria-selected=${tab === k} onClick=${() => setTab(k)} className=${'flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-sm ' + (tab === k ? 'bg-card font-medium shadow-soft' : 'text-muted hover:text-ink')}><${Icon} n=${ic} size=${14} />${n}</button>`)}
         </div>
         <div className="xl:max-h-[calc(100vh-9rem)] xl:overflow-y-auto">
-          ${tab === 'todo' && html`<${Todos} date=${sel} todos=${data.todos} setTodos=${setTodos} onSchedule=${scheduleTodo} />`}
+          ${tab === 'todo' && html`<${Todos} date=${sel} todos=${data.todos} setTodos=${setTodos} favorites=${data.favorites || []} />`}
           ${tab === 'journal' && html`<${Journal} date=${sel} text=${data.journal[sel] || ''} onChange=${v => setData(d => ({ ...d, journal: { ...d.journal, [sel]: v } }))} />`}
         </div>
       </section>
     </div>
 
-    ${modal && html`<${EventModal} key=${modal.key} ev=${modal.ev} onSave=${saveEvent} onDelete=${deleteEvent} onClose=${() => setModal(null)} />`}
-    ${pmodal && html`<${PresetModal} key=${pmodal.id} preset=${pmodal} dayEvents=${dayTimed} selLabel=${label(sel)} onSave=${savePreset}
-      onDelete=${id => { setData(d => ({ ...d, presets: d.presets.filter(p => p.id !== id) })); setPmodal(null); say('프리셋을 삭제했어요'); }} onClose=${() => setPmodal(null)} />`}
+    ${modal && html`<${EventModal} key=${modal.key} ev=${modal.ev} favorites=${data.favorites || []} onSave=${saveEvent} onDelete=${deleteEvent} onClose=${() => setModal(null)} />`}
     ${catModal && html`<${CatModal} cats=${data.cats} setCats=${v => setData(d => ({ ...d, cats: v }))} onDelete=${deleteCat} onClose=${() => setCatModal(false)} />`}
     ${ddModal && html`<${DdayModal} items=${data.ddays || []} setItems=${v => setData(d => ({ ...d, ddays: v }))} today=${today} onClose=${() => setDdModal(false)} />`}
     ${toast && html`<div role="status" className="fixed left-1/2 z-[60] max-w-[90vw] -translate-x-1/2 rounded-full px-4 py-2 text-sm shadow-soft" style=${{ bottom: 'calc(16px + env(safe-area-inset-bottom,0px))', background: 'var(--ink)', color: 'var(--bg)' }}>${toast}</div>`}
@@ -1036,12 +954,6 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);
-</script>
-
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
-}
 </script>
 </body>
 </html>
